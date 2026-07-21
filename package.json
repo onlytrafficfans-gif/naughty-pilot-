@@ -1,0 +1,9 @@
+{
+  "name": "naughty-pilot-mock",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": { "dev": "node server.mjs", "build": "vite build", "preview": "node server.mjs --production" },
+  "dependencies": { "@vitejs/plugin-react": "latest", "vite": "latest", "typescript": "latest", "react": "latest", "react-dom": "latest", "lucide-react": "latest", "express": "latest", "cheerio": "latest" },
+  "devDependencies": {}
+}
