@@ -220,7 +220,7 @@ function CampaignPage({budget,setBudget,price,setPrice,goal,setGoal,image,buildi
           <div><span>AI MEDIA BUYER</span><h1>Drop your photos.<br/><em>AI builds the campaign.</em></h1><p>From one creative to a complete campaign—objective, audience, placements, budget, copy, ad variations, and forecast.</p><button className="ai-do" onClick={()=>setStep(2)}><WandSparkles/>AI DO IT <ArrowUpRight/></button></div>
           <Builder budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} aiMode/>
         </div>
-      </>;}
+      </>}
       {step===2&&<AdSetPage budget={budget} setBudget={setBudget} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} onNext={()=>setStep(3)}/>}
       {step===3&&<CreativesPage image={image} upload={upload} fileRef={fileRef} notify={(msg:string)=>{}} onLaunch={()=>setBillingOpen(true)}/>}
     </div>
