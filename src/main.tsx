@@ -38,7 +38,7 @@ const skillCatalog=[
   [Rocket,'Launch Sequencer','Step-by-step campaign go-live checklist'],
   [Library,'Content Library','Organize, tag, and repurpose your media'],
   [Bot,'Compliance Auditor','Flag policy violations before you spend'],
-  [Zap,'Retargeting Playbook','Re-engage visitors who didn't convert'],
+  [Zap,'Retargeting Playbook','Re-engage visitors who didn\'t convert'],
   [Settings,'A/B Test Planner','Design split tests with statistical confidence'],
 ];
 
