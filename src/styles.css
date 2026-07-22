@@ -50,13 +50,6 @@ nav button svg{width:15px;flex-shrink:0}
 .head-actions>button:hover{color:#fff;border-color:#555}
 .head-actions svg{width:14px}
 
-/* ── ACCOUNT STRIP ──────────────────────── */
-.account-strip{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid #1c0e0e;background:#060303}
-.account-strip>div{display:grid;gap:6px;padding:14px 20px;border-right:1px solid #1c0e0e;min-width:0}
-.account-strip>div:last-child{border-right:0}
-.account-strip span{font:500 8px DM Mono;color:#7a6a6a;letter-spacing:.08em;white-space:nowrap}
-.account-strip b{font:600 13px DM Mono;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap}
-.account-strip i{width:7px;height:7px;border-radius:50%;background:var(--red);box-shadow:0 0 8px var(--red);flex-shrink:0}
 
 /* ── WORKSPACE ──────────────────────────── */
 .workspace{padding:30px;animation:resultsIn .35s ease;flex:1}
