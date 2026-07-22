@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Upload, Sparkles, LayoutDashboard, WandSparkles, ChartNoAxesCombined, Route, Rocket, SlidersHorizontal, Check, CircleDollarSign, MousePointer2, Eye, Users, TrendingUp, Info, ArrowUpRight, Image as ImageIcon, RotateCw, ShieldCheck, Bell, Settings, Zap, MessageCircle, Plus, Bot, Library, CreditCard, LockKeyhole, X, Send, Layers3 } from 'lucide-react';
 import './styles.css';
 
@@ -121,7 +121,21 @@ export function App(){
   }
 
   const isBlack=true;
-  const isLive=true;
+
+  const[isDesktop,setIsDesktop]=useState(()=>typeof window==='undefined'||window.innerWidth>=1180);
+  useEffect(()=>{
+    const mq=window.matchMedia('(min-width: 1180px)');
+    const onChange=()=>setIsDesktop(mq.matches);
+    mq.addEventListener('change',onChange);
+    return()=>mq.removeEventListener('change',onChange);
+  },[]);
+
+  if(!isDesktop)return(
+    <div className="desktop-gate">
+      <img src="/naughty-pilot-logo.png" alt="Naughty Pilot"/>
+      <p>NaughtyPilot is a desktop campaign workspace. Open it on a screen at least 1180px wide.</p>
+    </div>
+  );
 
   return(
     <div className="app">
@@ -142,15 +156,10 @@ export function App(){
 
       <main>
         <header>
-          <div className="sim live"><i/><span>{isLive?'AI MEDIA BUYER · ONLINE':'SIMULATION MODE'}</span></div>
-          <span>{isLive?'Ready to build from your photos':'Real source logic. Mock campaign data.'}</span>
+          <span className="head-title">Ready to build from your photos</span>
           <div className="head-actions">
             <button aria-label="Notifications"><Bell/></button>
             <button aria-label="Settings"><Settings/></button>
-            <button className="profile">
-              <span style={{background:'#d71920',width:28,height:28,borderRadius:'50%',display:'grid',placeItems:'center',fontSize:11,fontWeight:700,color:'#fff'}}>NP</span>
-              <span><b>{creatorName||'Naughty Pilot'}</b><small>Campaign workspace</small></span>
-            </button>
           </div>
         </header>
 
@@ -206,21 +215,17 @@ function OverviewPage({budget,setBudget,price,setPrice,goal,setGoal,image,buildi
 function CampaignPage({budget,setBudget,price,setPrice,goal,setGoal,image,building,demoStep,generated,upload,fileRef,m,angle,setAngle,region,setRegion,setBillingOpen}:any){
   const[step,setStep]=useState(1);
   return(
-    <div className="intro">
-      <div>
-        <div className="campaign-tabs">
-          {[['1','Campaign'],['2','Ad set'],['3','Creatives']].map(([n,label],i)=>
-            <><button key={n} className={step===i+1?'active':''} onClick={()=>setStep(i+1)}><span>{n}</span>{label}</button>{i<2&&<i/>}</>
-          )}
-          <div className="autosave"><i/>Autosaved</div>
-        </div>
+    <div className="campaign-flow">
+      <div className="campaign-tabs">
+        {[['1','Campaign'],['2','Ad set'],['3','Creatives']].map(([n,label],i)=>
+          <React.Fragment key={n}><button className={step===i+1?'active':''} onClick={()=>setStep(i+1)}><span>{n}</span>{label}</button>{i<2&&<i/>}</React.Fragment>
+        )}
+        <div className="autosave"><i/>Autosaved</div>
       </div>
-      {step===1&&<>
-        <div className="intro" style={{paddingTop:24}}>
-          <div><span>AI MEDIA BUYER</span><h1>Drop your photos.<br/><em>AI builds the campaign.</em></h1><p>From one creative to a complete campaign—objective, audience, placements, budget, copy, ad variations, and forecast.</p><button className="ai-do" onClick={()=>setStep(2)}><WandSparkles/>AI DO IT <ArrowUpRight/></button></div>
-          <Builder budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} aiMode/>
-        </div>
-      </>}
+      {step===1&&<div className="campaign-stage">
+        <div className="stage-hero"><span>AI MEDIA BUYER</span><h1>Drop your photos.<br/><em>AI builds the campaign.</em></h1><p>From one creative to a complete campaign—objective, audience, placements, budget, copy, ad variations, and forecast.</p><button className="ai-do" onClick={()=>setStep(2)}><WandSparkles/>AI DO IT <ArrowUpRight/></button></div>
+        <Builder budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} aiMode/>
+      </div>}
       {step===2&&<AdSetPage budget={budget} setBudget={setBudget} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} onNext={()=>setStep(3)}/>}
       {step===3&&<CreativesPage image={image} upload={upload} fileRef={fileRef} notify={(msg:string)=>{}} onLaunch={()=>setBillingOpen(true)}/>}
     </div>
