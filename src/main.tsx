@@ -183,7 +183,7 @@ export function App(){
       try{
         const outputs=await Promise.all(PLACEMENT_SIZES.map(async([label,w,h])=>({
           id:crypto.randomUUID(),name:`${reference.name.replace(/\.[^.]+$/,'')} — ${label}`,url:await resizeToCanvas(reference.url,w,h),
-          mime:'image/jpeg',width:w,height:h,createdAt:Date.now(),source:'Resize (local, no AI)',status:'Ready',
+          mime:'image/jpeg',width:w,height:h,createdAt:Date.now(),source:'Resize',status:'Ready',
         })));
         setAssets(prev=>[...outputs,...prev.filter(x=>x.id!==id)]);
         notify(`Resized to ${outputs.length} placement formats.`);
@@ -521,17 +521,39 @@ const BRIEF_ACTIONS=[
   'Generate a new suggestion using the uploaded reference',
 ];
 
+// Fixed reference examples — real provided images, never resized/cropped into new records,
+// never entered into the resize/variation pipeline. format:"multi-format" is excluded from
+// that pipeline entirely; each individual example uses a distinct source image.
+const EXAMPLE_CREATIVES=[
+  {id:'ex-multi',image:'/examples/multi-format-guide.png',title:'Multi-format campaign example',format:'multi-format',placement:'Story, banner & desktop reference',source:'uploaded',allowDuplicate:false},
+  {id:'ex-square',image:'/examples/model-square.png',title:'Square Ad — 1:1',format:'square',placement:'Feed — Instagram, Facebook',source:'uploaded',allowDuplicate:false},
+  {id:'ex-story',image:'/examples/model-story.png',title:'Story Ad — 9:16',format:'story',placement:'Stories & Reels',source:'uploaded',allowDuplicate:false},
+  {id:'ex-landscape',image:'/examples/model-landscape.png',title:'Landscape Ad — 1.91:1',format:'landscape',placement:'Feed link ads, display',source:'uploaded',allowDuplicate:false},
+] as const;
+
+function placementFor(w:number,h:number){
+  if(!w||!h)return null;
+  const r=w/h;
+  if(Math.abs(r-1)<.08)return 'Feed — Instagram, Facebook';
+  if(r<.75)return 'Stories & Reels';
+  if(r>1.5)return 'Feed link ads, display';
+  return 'Feed placements';
+}
+
 function CreativesPage({assets,submitBrief,upload,fileRef,onLaunch}:any){
   const[briefOpen,setBriefOpen]=useState(false);
   const[briefText,setBriefText]=useState('');
   const[briefAction,setBriefAction]=useState(BRIEF_ACTIONS[0]);
   const list=assets||[];
+  const images=list.filter((a:any)=>a.mime?.startsWith('image/'));
+  const briefs=list.filter((a:any)=>a.mime==='text/brief');
+
   return(
     <div className="workspace">
       <div className="workspace-head"><div><span>CREATIVES</span><h1>Creatives</h1></div>
         <div style={{display:'flex',gap:8}}>
-          {list.length>0&&<button onClick={()=>fileRef?.current?.click()}><Upload style={{width:14}}/>Upload creative</button>}
-          {list.length>0&&<button onClick={()=>setBriefOpen(v=>!v)}><WandSparkles style={{width:14}}/>Create from brief</button>}
+          <button onClick={()=>fileRef?.current?.click()}><Upload style={{width:14}}/>Upload creative</button>
+          <button onClick={()=>setBriefOpen(v=>!v)}><WandSparkles style={{width:14}}/>Create from brief</button>
           {onLaunch&&<button className="primary" onClick={onLaunch}><Rocket style={{width:14}}/>Fund &amp; launch</button>}
         </div>
       </div>
@@ -546,7 +568,33 @@ function CreativesPage({assets,submitBrief,upload,fileRef,onLaunch}:any){
         </div>
       </div>}
 
-      {list.length===0&&!briefOpen&&<div className="creatives-empty">
+      <section className="example-section">
+        <h3>FORMAT EXAMPLES</h3>
+        <div className="example-hero">
+          <img src={EXAMPLE_CREATIVES[0].image} alt={EXAMPLE_CREATIVES[0].title} style={{objectFit:'contain'}}/>
+          <div className="example-hero-meta">
+            <b>{EXAMPLE_CREATIVES[0].title}</b>
+            <span>{EXAMPLE_CREATIVES[0].placement}</span>
+            <span>Source: Reference</span>
+            <em>Ready</em>
+          </div>
+        </div>
+        <div className="asset-grid">
+          {EXAMPLE_CREATIVES.slice(1).map(ex=>(
+            <div key={ex.id} className="asset-card">
+              <div className="asset-thumb"><img src={ex.image} alt={ex.title} style={{objectFit:'contain'}}/></div>
+              <div className="asset-meta">
+                <b>{ex.title}</b>
+                <span>{ex.placement}</span>
+                <span>Source: Reference</span>
+                <em>Ready</em>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {images.length===0&&briefs.length===0&&!briefOpen&&<div className="creatives-empty">
         <ImageIcon/>
         <b>Your creatives will appear here</b>
         <p>Upload an existing asset or describe what you want Naughty Pilot to create.</p>
@@ -556,25 +604,44 @@ function CreativesPage({assets,submitBrief,upload,fileRef,onLaunch}:any){
         </div>
       </div>}
 
-      {list.length>0&&<div className="asset-grid">
-        {list.map((a:any)=>(
-          <div key={a.id} className="asset-card">
-            <div className="asset-thumb">
-              {a.mime?.startsWith('image/')&&a.url
-                ?<img src={a.url} alt={a.name}/>
-                :<div className="asset-brief-body">{a.brief}</div>}
+      {images.length>0&&<section>
+        <h3>YOUR CREATIVES</h3>
+        <div className="asset-grid">
+          {images.map((a:any)=>{
+            const isResize=a.source==='Resize';
+            const label=isResize?a.name.replace(/^.*—\s*/,''):null;
+            const placement=isResize?null:placementFor(a.width,a.height);
+            return(
+            <div key={a.id} className="asset-card">
+              <div className="asset-thumb"><img src={a.url} alt={a.name}/></div>
+              <div className="asset-meta">
+                <b>{label||(placement?`${a.width}×${a.height}`:a.name)}</b>
+                <span>{isResize?(placementFor(a.width,a.height)||'—'):(placement||'—')}</span>
+                <span>Source: {isResize?'Resize':'Upload'}</span>
+                <em className={/^Failed/.test(a.status)?'bad':''}>{a.status}</em>
+              </div>
             </div>
-            <div className="asset-meta">
-              <b title={a.name}>{a.name}</b>
-              <span>{a.mime}{a.width?` · ${a.width}×${a.height}`:''}</span>
-              <span>{a.source} · {new Date(a.createdAt).toLocaleDateString()}</span>
-              {a.action&&<span>{a.action}</span>}
-              {a.resultText&&<p className="asset-result">{a.resultText}</p>}
-              <em className={/^Failed/.test(a.status)?'bad':''}>{a.status}</em>
+          );})}
+        </div>
+      </section>}
+
+      {briefs.length>0&&<section>
+        <h3>CREATIVE BRIEFS</h3>
+        <div className="asset-grid">
+          {briefs.map((a:any)=>(
+            <div key={a.id} className="asset-card">
+              <div className="asset-thumb"><div className="asset-brief-body">{a.brief}</div></div>
+              <div className="asset-meta">
+                <b>{a.action}</b>
+                <span>Brief</span>
+                <span>Source: Create from brief</span>
+                {a.resultText&&<p className="asset-result">{a.resultText}</p>}
+                <em className={/^Failed/.test(a.status)?'bad':''}>{a.status}</em>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>}
+          ))}
+        </div>
+      </section>}
 
       <input ref={fileRef} type="file" accept="image/*" multiple style={{display:'none'}} onChange={e=>upload(e.target.files)}/>
     </div>

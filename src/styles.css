@@ -199,6 +199,14 @@ select{background:#111;border:1px solid #2a1414;border-radius:5px;color:#ccc;pad
 .asset-meta em{font:600 9px 'DM Mono';color:#8fdc7a;font-style:normal;margin-top:2px}
 .asset-meta em.bad{color:#ff6b6b}
 .asset-result{font-size:10px;color:#c9b9b9;line-height:1.6;margin:4px 0 0;max-height:120px;overflow-y:auto;white-space:pre-wrap}
+.example-section,.workspace>section{margin-bottom:28px}
+.example-section h3,.workspace>section>h3{font:600 9px 'DM Mono';color:#7a6a6a;letter-spacing:.1em;margin:0 0 12px}
+.example-hero{border:1px solid #2a1414;border-radius:10px;background:#080808;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) 260px;margin-bottom:14px}
+.example-hero img{width:100%;height:340px;background:#0c0808;object-fit:contain}
+.example-hero-meta{padding:16px;display:grid;gap:6px;align-content:start;border-left:1px solid #2a1414}
+.example-hero-meta b{font-size:13px;color:#fff}
+.example-hero-meta span{font:9px 'DM Mono';color:#7a6a6a}
+.example-hero-meta em{font:600 9px 'DM Mono';color:#8fdc7a;font-style:normal;margin-top:4px}
 
 /* ── TRAFFIC TABLE ──────────────────────── */
 .traffic-table{border:1px solid #2a1414;border-radius:10px;overflow:hidden;margin-bottom:16px}
