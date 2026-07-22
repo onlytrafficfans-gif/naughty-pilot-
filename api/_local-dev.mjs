@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createAnalyzeHandler } from './analyze-website.mjs';
 import { createGenerateHandler } from './generate-campaign.mjs';
+import { createCreativeHandler } from './generate-creative.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -25,6 +26,7 @@ export async function createLocalServer() {
   app.use(express.json({ limit: '8mb' }));
   app.post('/api/analyze-website', createAnalyzeHandler());
   app.post('/api/generate-campaign', createGenerateHandler());
+  app.post('/api/generate-creative', createCreativeHandler());
   const vite = await createViteServer({
     root,
     server: { middlewareMode: true },

@@ -10,11 +10,9 @@
     "vercel-build": "vite build"
   },
   "dependencies": {
-    "ai": "^7.0.34",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "zod": "^4.4.3"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

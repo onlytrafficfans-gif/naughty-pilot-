@@ -174,13 +174,31 @@ select{background:#111;border:1px solid #2a1414;border-radius:5px;color:#ccc;pad
 .creative-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:18px}
 .creative-toolbar .primary{width:auto;padding:11px 18px}
 .creative-toolbar span.muted,.traffic-actions span{color:#666;font:9px DM Mono;margin-left:auto}
-.creative-library{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-.ad{height:320px;border:1px solid #2a1414;border-radius:8px;overflow:hidden;position:relative;background:linear-gradient(160deg,#1a0708,#0a0303)}
-.ad-overlay{position:absolute;inset:0;background:linear-gradient(to top,#000d,transparent 60%);display:flex;flex-direction:column;justify-content:flex-end;padding:18px}
-.ad-overlay span{font:600 8px DM Mono;color:var(--red);margin-bottom:8px;letter-spacing:.1em}
-.ad-overlay h3{font:700 16px 'Playfair Display';color:#fff;margin-bottom:8px}
-.ad-overlay p{font-size:9px;color:#ccc;margin-bottom:12px}
-.ad-overlay button{border:0;border-radius:4px;background:var(--red);color:#fff;padding:9px 14px;font:700 9px DM Mono;display:flex;align-items:center;gap:6px;width:fit-content}
+
+/* ── CREATIVES WORKSPACE ────────────────── */
+.creatives-empty{border:1px dashed #2a1414;border-radius:12px;background:#070404;display:grid;place-content:center;justify-items:center;gap:10px;min-height:380px;text-align:center;padding:40px}
+.creatives-empty svg{width:34px;height:34px;color:#3d2020}
+.creatives-empty b{font:700 16px Manrope;color:#ddd}
+.creatives-empty p{font-size:11px;color:#7a6a6a;margin:0;max-width:380px;line-height:1.7}
+.creatives-empty>div{display:flex;gap:10px;margin-top:8px}
+.creatives-empty .primary{width:auto;padding:11px 18px}
+.creatives-empty>div>button:not(.primary){border:1px solid #3d1718;background:#100708;color:#ccc;padding:11px 18px;border-radius:6px;font-size:11px}
+.brief-panel{border:1px solid #2a1414;border-radius:10px;background:#080808;padding:16px;margin-bottom:18px;display:grid;gap:10px}
+.brief-panel textarea{background:#111;border:1px solid #2a1414;border-radius:6px;color:#fff;padding:12px;font:11px/1.6 Manrope;resize:vertical;min-height:80px}
+.brief-controls{display:flex;gap:10px;justify-content:flex-end}
+.brief-controls select{min-width:300px}
+.brief-controls .primary{width:auto;padding:10px 22px}
+.asset-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.asset-card{border:1px solid #2a1414;border-radius:10px;background:#080808;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.asset-thumb{height:190px;background:#0c0808;display:grid;place-items:center;overflow:hidden}
+.asset-thumb img{width:100%;height:100%;object-fit:cover}
+.asset-brief-body{font:10px/1.7 'DM Mono';color:#c9b9b9;padding:14px;max-height:100%;overflow:hidden;align-self:start;justify-self:start;white-space:pre-wrap}
+.asset-meta{padding:12px 14px;display:grid;gap:4px;min-width:0}
+.asset-meta b{font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.asset-meta span{font:9px 'DM Mono';color:#7a6a6a;overflow:hidden;text-overflow:ellipsis}
+.asset-meta em{font:600 9px 'DM Mono';color:#8fdc7a;font-style:normal;margin-top:2px}
+.asset-meta em.bad{color:#ff6b6b}
+.asset-result{font-size:10px;color:#c9b9b9;line-height:1.6;margin:4px 0 0;max-height:120px;overflow-y:auto;white-space:pre-wrap}
 
 /* ── TRAFFIC TABLE ──────────────────────── */
 .traffic-table{border:1px solid #2a1414;border-radius:10px;overflow:hidden;margin-bottom:16px}

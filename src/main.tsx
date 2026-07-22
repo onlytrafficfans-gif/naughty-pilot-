@@ -57,6 +57,7 @@ export function App(){
   const[price,setPrice]=useState(19.99);
   const[goal,setGoal]=useState(240);
   const[images,setImages]=useState<string[]>([]);
+  const[assets,setAssets]=useState<any[]>([]);
   const[aiCampaign,setAiCampaign]=useState<any>(null);
   const image=images[0]||null;
   const[building,setBuilding]=useState(false);
@@ -135,10 +136,73 @@ export function App(){
     const urls=list.map(f=>URL.createObjectURL(f));
     setImages(prev=>[...prev,...urls]);
     runBuild(`Campaign built from ${urls.length>1?`${urls.length} creatives`:'your creative'} — every layer is editable.`);
+    const payloads=await Promise.all(list.map(f=>fileToResizedDataUrl(f).catch(()=>null)));
+    const records=list.map((f,i)=>({
+      id:crypto.randomUUID(),name:f.name,url:urls[i],mime:f.type,base64:payloads[i],
+      width:0,height:0,createdAt:Date.now(),source:'Upload',status:'Ready',
+    }));
+    setAssets(prev=>[...records,...prev]);
+    records.forEach(rec=>{
+      const im=new Image();
+      im.onload=()=>setAssets(prev=>prev.map(x=>x.id===rec.id?{...x,width:im.naturalWidth,height:im.naturalHeight}:x));
+      im.src=rec.url;
+    });
+    const valid=payloads.filter(Boolean).map(b=>({base64:b as string}));
+    if(valid.length)requestAiCampaign(valid);
+  }
+
+  const PLACEMENT_SIZES:[string,number,number][]=[
+    ['Square 1080×1080',1080,1080],['Story 1080×1920',1080,1920],['Landscape 1200×628',1200,628],['Banner 728×90',728,90],
+  ];
+
+  function resizeToCanvas(src:string,w:number,h:number):Promise<string>{
+    return new Promise((resolve,reject)=>{
+      const img=new Image();
+      img.crossOrigin='anonymous';
+      img.onload=()=>{
+        const canvas=document.createElement('canvas');
+        canvas.width=w;canvas.height=h;
+        const ctx=canvas.getContext('2d')!;
+        const scale=Math.max(w/img.width,h/img.height);
+        const dw=img.width*scale,dh=img.height*scale;
+        ctx.drawImage(img,(w-dw)/2,(h-dh)/2,dw,dh);
+        resolve(canvas.toDataURL('image/jpeg',.85));
+      };
+      img.onerror=reject;
+      img.src=src;
+    });
+  }
+
+  async function submitBrief(brief:string,action:string){
+    const id=crypto.randomUUID();
+    const reference=assets.find((x:any)=>x.mime?.startsWith('image/')&&x.url);
+
+    if(action==='Resize it for placements'){
+      if(!reference){notify('Upload an image first — resizing needs a source asset.');return;}
+      setAssets(prev=>[{id,name:brief,brief,action,mime:'text/brief',createdAt:Date.now(),source:'Create from brief',status:'Resizing…'},...prev]);
+      try{
+        const outputs=await Promise.all(PLACEMENT_SIZES.map(async([label,w,h])=>({
+          id:crypto.randomUUID(),name:`${reference.name.replace(/\.[^.]+$/,'')} — ${label}`,url:await resizeToCanvas(reference.url,w,h),
+          mime:'image/jpeg',width:w,height:h,createdAt:Date.now(),source:'Resize (local, no AI)',status:'Ready',
+        })));
+        setAssets(prev=>[...outputs,...prev.filter(x=>x.id!==id)]);
+        notify(`Resized to ${outputs.length} placement formats.`);
+      }catch{
+        setAssets(prev=>prev.map(x=>x.id===id?{...x,status:'Failed — could not read source image'}:x));
+      }
+      return;
+    }
+
+    setAssets(prev=>[{id,name:brief,brief,action,mime:'text/brief',createdAt:Date.now(),source:'Create from brief',status:'Working…'},...prev]);
     try{
-      const payloads=await Promise.all(list.map(async f=>({base64:await fileToResizedDataUrl(f)})));
-      requestAiCampaign(payloads);
-    }catch{/* keep heuristics */}
+      const r=await fetch('/api/generate-creative',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brief,action})});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.error||'Creative action failed.');
+      setAssets(prev=>prev.map(x=>x.id===id?{...x,status:'Ready',resultText:d.text}:x));
+      notify('Creative action complete.');
+    }catch(e:any){
+      setAssets(prev=>prev.map(x=>x.id===id?{...x,status:`Failed — ${e.message}`}:x));
+    }
   }
 
   function buildFromSite(){
@@ -227,10 +291,10 @@ export function App(){
         </header>
 
         {page==='Overview'&&<OverviewPage budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} images={images} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} mixOpen={mixOpen} setMixOpen={setMixOpen} mix={mix} setMix={setMix} totalMix={totalMix} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} isBlack={isBlack} websiteUrl={websiteUrl} setWebsiteUrl={setWebsiteUrl} websiteLoading={websiteLoading} websiteResult={websiteResult} websiteError={websiteError} analyzeWebsite={analyzeWebsite} buildFromSite={buildFromSite} aiCampaign={aiCampaign} onBuild={()=>runBuild('Campaign built — every layer is editable.')}/>}
-        {page==='Campaign Builder'&&<CampaignPage budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} images={images} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} setBillingOpen={setBillingOpen} adHook={websiteResult?.adSuggestions?.[0]} aiCampaign={aiCampaign} onBuild={()=>runBuild('Campaign built — every layer is editable.')}/>}
+        {page==='Campaign Builder'&&<CampaignPage budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} images={images} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} setBillingOpen={setBillingOpen} adHook={websiteResult?.adSuggestions?.[0]} aiCampaign={aiCampaign} assets={assets} submitBrief={submitBrief} onBuild={()=>runBuild('Campaign built — every layer is editable.')}/>}
         {page==='Chat Studio'&&<ChatPage chatLog={chatLog} chatMsg={chatMsg} setChatMsg={setChatMsg} sendChat={sendChat} chatRef={chatRef} drawerOpen={drawerOpen} setDrawerOpen={setDrawerOpen} notify={notify}/>}
         {page==='Model Assets'&&<AssetsPage websiteUrl={websiteUrl} setWebsiteUrl={setWebsiteUrl} websiteLoading={websiteLoading} websiteResult={websiteResult} websiteError={websiteError} analyzeWebsite={analyzeWebsite} buildFromSite={buildFromSite}/>}
-        {page==='Creatives'&&<CreativesPage images={images} aiCampaign={aiCampaign} upload={upload} fileRef={fileRef} notify={notify}/>}
+        {page==='Creatives'&&<CreativesPage assets={assets} submitBrief={submitBrief} upload={upload} fileRef={fileRef}/>}
         {page==='Traffic Mix'&&<TrafficPage mix={mix} setMix={setMix} totalMix={totalMix} notify={notify}/>}
         {page==='Forecast'&&<ForecastPage m={m} budget={budget} price={price}/>}
         {page==='Launch Plan'&&<LaunchPage m={m} budget={budget} price={price} creatorName={creatorName} setBillingOpen={setBillingOpen} notify={notify}/>}
@@ -268,7 +332,7 @@ function OverviewPage({budget,setBudget,price,setPrice,goal,setGoal,image,images
   );
 }
 
-function CampaignPage({budget,setBudget,price,setPrice,goal,setGoal,image,images,building,demoStep,generated,upload,fileRef,m,angle,setAngle,region,setRegion,setBillingOpen,adHook,aiCampaign,onBuild}:any){
+function CampaignPage({budget,setBudget,price,setPrice,goal,setGoal,image,images,building,demoStep,generated,upload,fileRef,m,angle,setAngle,region,setRegion,setBillingOpen,adHook,aiCampaign,assets,submitBrief,onBuild}:any){
   const[step,setStep]=useState(1);
   return(
     <div className="campaign-flow">
@@ -283,7 +347,7 @@ function CampaignPage({budget,setBudget,price,setPrice,goal,setGoal,image,images
         <Builder budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} images={images} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} adHook={adHook} aiCampaign={aiCampaign} onBuild={onBuild} aiMode/>
       </div>}
       {step===2&&<AdSetPage budget={budget} setBudget={setBudget} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} onNext={()=>setStep(3)}/>}
-      {step===3&&<CreativesPage images={images} aiCampaign={aiCampaign} upload={upload} fileRef={fileRef} notify={(msg:string)=>{}} onLaunch={()=>setBillingOpen(true)}/>}
+      {step===3&&<CreativesPage assets={assets} submitBrief={submitBrief} upload={upload} fileRef={fileRef} onLaunch={()=>setBillingOpen(true)}/>}
     </div>
   );
 }
@@ -450,54 +514,68 @@ function AssetsPage({websiteUrl,setWebsiteUrl,websiteLoading,websiteResult,websi
   );
 }
 
-function rankImages(images:string[]){
-  const score=(s:string,i:number)=>{let h=0;for(const ch of s)h=(h*31+ch.charCodeAt(0))%997;return 6+((h+i*137)%40)/10;};
-  return images.map((src,i)=>({src,ctr:score(src,i)})).sort((a,b)=>b.ctr-a.ctr);
-}
+const BRIEF_ACTIONS=[
+  'Analyze the uploaded asset',
+  'Create variations',
+  'Resize it for placements',
+  'Generate a new suggestion using the uploaded reference',
+];
 
-function CreativesPage({images,aiCampaign,upload,fileRef,notify,onLaunch}:any){
-  const heuristic=rankImages(images||[]);
-  const ranked=aiCampaign?.ranking?.length
-    ?aiCampaign.ranking.filter((r:any)=>images?.[r.index]).map((r:any)=>({src:images[r.index],ctr:r.score,reason:r.reason,placement:r.placement}))
-    :heuristic;
-  const variants=['Confidence lead','Exclusive angle','FOMO hook','Direct CTA','Lifestyle frame','Value stack'];
-  const audiences=['21+ US','Global','US/UK','Retarget','Lookalike','Broad'];
-  const placements=['TrafficJunky · CPM','ExoClick · Native','JuicyAds · Banner','Reddit · Organic','X / Social','Creator swaps'];
-  const count=Math.max(6,ranked.length);
+function CreativesPage({assets,submitBrief,upload,fileRef,onLaunch}:any){
+  const[briefOpen,setBriefOpen]=useState(false);
+  const[briefText,setBriefText]=useState('');
+  const[briefAction,setBriefAction]=useState(BRIEF_ACTIONS[0]);
+  const list=assets||[];
   return(
     <div className="workspace">
-      <div className="workspace-head"><div><span>CREATIVES</span><h1>Ad variations</h1><p>{ranked.length?`${aiCampaign?'AI vision analysis ranked':'AI ranked'} ${ranked.length} creative${ranked.length>1?'s':''} by predicted performance and matched each to its best placement.`:'Upload photos — AI generates ranked ad variants and placement recommendations.'}</p></div>
+      <div className="workspace-head"><div><span>CREATIVES</span><h1>Creatives</h1></div>
         <div style={{display:'flex',gap:8}}>
-          <button onClick={()=>fileRef?.current?.click()}><Upload style={{width:14}}/>Add creatives</button>
+          {list.length>0&&<button onClick={()=>fileRef?.current?.click()}><Upload style={{width:14}}/>Upload creative</button>}
+          {list.length>0&&<button onClick={()=>setBriefOpen(v=>!v)}><WandSparkles style={{width:14}}/>Create from brief</button>}
           {onLaunch&&<button className="primary" onClick={onLaunch}><Rocket style={{width:14}}/>Fund &amp; launch</button>}
         </div>
       </div>
-      <div className="creative-library">
-        {[...Array(count)].map((_,i)=>{
-          const r=ranked.length?ranked[i%ranked.length]:null;
-          const isTop=ranked.length>0&&i<ranked.length&&i===0;
-          return(
-          <div key={i} className="ad" style={{background:'#080808',border:`1px solid ${isTop?'#7a1518':'#321214'}`,borderRadius:10,overflow:'hidden',display:'flex',flexDirection:'column'}}>
-            <div style={{flex:1,minHeight:170,background:r?`url(${r.src}) center/cover`:'#111',position:'relative'}}>
-              {!r&&<div style={{position:'absolute',inset:0,display:'grid',placeItems:'center',color:'#333'}}><ImageIcon/></div>}
-              <div style={{position:'absolute',top:8,left:8,display:'flex',gap:6}}>
-                {i<ranked.length&&<span style={{background:isTop?'#d71920':'#1c0e0e',border:'1px solid #d71920',color:'#fff',fontSize:7,fontFamily:'DM Mono',padding:'3px 7px',borderRadius:3}}>{isTop?'★ RANK #1':`RANK #${i+1}`}</span>}
-                <span style={{background:'#000c',color:'#fff',fontSize:7,fontFamily:'DM Mono',padding:'3px 7px',borderRadius:3}}>VARIANT {i+1}</span>
-              </div>
-              {r&&<span style={{position:'absolute',bottom:8,right:8,background:'#000c',color:'#8fdc7a',fontSize:7,fontFamily:'DM Mono',padding:'3px 7px',borderRadius:3}}>{aiCampaign?`SCORE ${Number(r.ctr).toFixed(1)}/10`:`CTR ${Number(r.ctr).toFixed(1)}%`}</span>}
+
+      {briefOpen&&<div className="brief-panel">
+        <textarea value={briefText} onChange={e=>setBriefText(e.target.value)} rows={4} placeholder=""/>
+        <div className="brief-controls">
+          <select value={briefAction} onChange={e=>setBriefAction(e.target.value)}>
+            {BRIEF_ACTIONS.map(a=><option key={a}>{a}</option>)}
+          </select>
+          <button className="primary" disabled={!briefText.trim()} onClick={()=>{submitBrief(briefText,briefAction);setBriefText('');setBriefOpen(false);}}>Submit</button>
+        </div>
+      </div>}
+
+      {list.length===0&&!briefOpen&&<div className="creatives-empty">
+        <ImageIcon/>
+        <b>Your creatives will appear here</b>
+        <p>Upload an existing asset or describe what you want Naughty Pilot to create.</p>
+        <div>
+          <button className="primary" onClick={()=>fileRef?.current?.click()}>Upload creative</button>
+          <button onClick={()=>setBriefOpen(true)}>Create from brief</button>
+        </div>
+      </div>}
+
+      {list.length>0&&<div className="asset-grid">
+        {list.map((a:any)=>(
+          <div key={a.id} className="asset-card">
+            <div className="asset-thumb">
+              {a.mime?.startsWith('image/')&&a.url
+                ?<img src={a.url} alt={a.name}/>
+                :<div className="asset-brief-body">{a.brief}</div>}
             </div>
-            <div style={{padding:12}}>
-              <h3 style={{fontSize:10,marginBottom:4,color:'#fff'}}>{aiCampaign?.adCopy?.[i]?.variant||variants[i%6]}</h3>
-              {aiCampaign?.adCopy?.[i]?.hook
-                ?<p style={{fontSize:9,color:'#c9b9b9',margin:0,marginBottom:4,lineHeight:1.5}}>&ldquo;{aiCampaign.adCopy[i].hook}&rdquo;</p>
-                :<p style={{fontSize:9,color:'#888',margin:0,marginBottom:4}}>{audiences[i%6]} audience</p>}
-              {(r as any)?.reason&&<p style={{fontSize:8,color:'#7a6a6a',margin:0,marginBottom:4,lineHeight:1.5}}>{(r as any).reason}</p>}
-              <p style={{fontSize:8,color:'#ef2931',fontFamily:'DM Mono',margin:0,marginBottom:8}}>PLACE: {(r as any)?.placement||placements[i%6]}</p>
-              <button style={{background:'#d71920',border:0,color:'#fff',padding:'7px 12px',borderRadius:4,fontSize:8,fontFamily:'DM Mono',cursor:'pointer',display:'flex',alignItems:'center',gap:6}} onClick={()=>notify(`Variant ${i+1} added to campaign.`)}><Check style={{width:10}}/>Use this</button>
+            <div className="asset-meta">
+              <b title={a.name}>{a.name}</b>
+              <span>{a.mime}{a.width?` · ${a.width}×${a.height}`:''}</span>
+              <span>{a.source} · {new Date(a.createdAt).toLocaleDateString()}</span>
+              {a.action&&<span>{a.action}</span>}
+              {a.resultText&&<p className="asset-result">{a.resultText}</p>}
+              <em className={/^Failed/.test(a.status)?'bad':''}>{a.status}</em>
             </div>
           </div>
-        );})}
-      </div>
+        ))}
+      </div>}
+
       <input ref={fileRef} type="file" accept="image/*" multiple style={{display:'none'}} onChange={e=>upload(e.target.files)}/>
     </div>
   );

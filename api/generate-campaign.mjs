@@ -1,65 +1,39 @@
-// AI campaign generation via Vercel AI Gateway.
-// Auth: VERCEL_OIDC_TOKEN (auto on Vercel; `vercel env pull` locally) or AI_GATEWAY_API_KEY.
-import { generateObject, gateway } from 'ai';
-import { z } from 'zod';
+// Campaign ad-copy generation via local Ollama — no cloud API, no API key.
+// Note: no vision model is installed locally, so this does NOT analyze image content.
+// Image ranking stays on the deterministic client-side heuristic (see rankImages in main.tsx),
+// which is honestly labeled as such in the UI — never presented as AI vision analysis.
+import { ollamaChatJSON, isOllamaReachable } from './_ollama.mjs';
 
-const MAX_IMAGES = 6;
-
-const campaignSchema = z.object({
-  ranking: z.array(z.object({
-    index: z.number().describe('zero-based index of the image in the order provided'),
-    score: z.number().min(0).max(10).describe('predicted ad performance 0-10'),
-    reason: z.string().describe('one short sentence: why this image ranks here'),
-    placement: z.string().describe('best placement, one of: TrafficJunky · CPM, ExoClick · Native, JuicyAds · Banner, Reddit · Organic, X / Social, Creator swaps'),
-  })),
-  adCopy: z.array(z.object({
-    variant: z.string().describe('short variant name, e.g. Confidence lead'),
-    hook: z.string().describe('scroll-stopping first line, under 90 chars, no platform names, no explicit language'),
-    cta: z.string().describe('call to action under 40 chars'),
-  })).min(3).max(6),
-  objective: z.string().describe('one-line campaign objective'),
-  audienceNotes: z.string().describe('one sentence on the target audience for this creative set'),
-});
+const SYSTEM = `You are a media buyer writing ad copy for adult-creator subscription campaigns. Output must be brand-safe (no explicit language), policy-safe (no platform names), and match the requested angle exactly. Respond with ONLY a JSON object, no markdown, no commentary, matching this exact shape:
+{"objective":"one line","audienceNotes":"one sentence","adCopy":[{"variant":"short name","hook":"under 90 chars, no platform names","cta":"under 40 chars"}, ... 4 to 6 items]}`;
 
 export async function generateCampaign(body) {
-  const { images = [], angle, region, budget, price, brand, positioning, siteHooks = [] } = body || {};
+  const { angle, region, budget, price, brand, positioning, siteHooks = [] } = body || {};
 
-  const content = [{
-    type: 'text',
-    text: `You are an expert media buyer for adult-creator subscription marketing. All output must be brand-safe and non-explicit — suitable for mainstream ad review. Never name any platform.
+  if (!(await isOllamaReachable())) {
+    throw new Error('Ollama is not reachable at 127.0.0.1:11434 — start it with "ollama serve".');
+  }
 
-Campaign inputs:
+  const prompt = `Campaign inputs:
 - Creative angle: ${angle || 'Confident & playful'}
 - Target: ${region || 'United States · 21+'}
 - Test budget: $${budget || 300} · Subscription price: $${price || 19.99}
 ${brand ? `- Brand: ${brand} (${positioning || 'creator brand'})` : ''}
 ${siteHooks.length ? `- Copy hooks found on the brand's own site: ${siteHooks.join(' | ')}` : ''}
 
-Analyze the ${Math.min(images.length, MAX_IMAGES)} attached campaign photos. Rank every image by predicted ad click-through for this angle and audience (composition, lighting, eye contact, clarity, policy safety), assign each its best placement, and write ad copy variants matched to the strongest images. If an image is unusable for ads, score it low and say why.`,
-  }];
+Write the campaign objective, one audience note, and 4-6 ad copy variants for this angle and audience.`;
 
-  for (const img of images.slice(0, MAX_IMAGES)) {
-    if (img.base64) content.push({ type: 'image', image: img.base64 });
-    else if (img.url) content.push({ type: 'image', image: new URL(img.url) });
-  }
-
-  const { object } = await generateObject({
-    model: gateway('anthropic/claude-haiku-4.5'),
-    schema: campaignSchema,
-    messages: [{ role: 'user', content }],
-    providerOptions: { gateway: { tags: ['feature:campaign-builder'], models: ['anthropic/claude-sonnet-4.6'] } },
-  });
+  const object = await ollamaChatJSON({ system: SYSTEM, prompt });
+  if (!Array.isArray(object.adCopy) || !object.adCopy.length) throw new Error('Local model returned an incomplete campaign.');
   return object;
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   try {
-    const result = await generateCampaign(req.body);
-    return res.status(200).json(result);
+    return res.status(200).json(await generateCampaign(req.body));
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Campaign generation failed.';
-    return res.status(502).json({ error: message });
+    return res.status(502).json({ error: err instanceof Error ? err.message : 'Campaign generation failed.' });
   }
 }
 
@@ -67,11 +41,9 @@ export function createGenerateHandler() {
   return async (req, res) => {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
     try {
-      const result = await generateCampaign(req.body);
-      return res.json(result);
+      return res.json(await generateCampaign(req.body));
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Campaign generation failed.';
-      return res.status(502).json({ error: message });
+      return res.status(502).json({ error: err instanceof Error ? err.message : 'Campaign generation failed.' });
     }
   };
 }
