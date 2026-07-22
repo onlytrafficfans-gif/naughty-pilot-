@@ -53,7 +53,7 @@ function model(budget:number,price:number,goal:number){
 
 export function App(){
   const[page,setPage]=useState('Overview');
-  const[budget,setBudget]=useState(2000);
+  const[budget,setBudget]=useState(300);
   const[price,setPrice]=useState(19.99);
   const[goal,setGoal]=useState(240);
   const[image,setImage]=useState<string|null>(null);
@@ -83,12 +83,24 @@ export function App(){
 
   function notify(msg:string){setToast(msg);setTimeout(()=>setToast(null),3200);}
 
+  function runBuild(doneMsg?:string){
+    setBuilding(true);setGenerated(false);setDemoStep(1);
+    let s=1;
+    const iv=setInterval(()=>{s++;setDemoStep(s);if(s>=6){clearInterval(iv);setBuilding(false);setGenerated(true);if(doneMsg)notify(doneMsg);}},900);
+  }
+
   function upload(file?:File){
     if(!file)return;
-    const url=URL.createObjectURL(file);
-    setImage(url);setBuilding(true);setGenerated(false);setDemoStep(1);
-    let s=1;
-    const iv=setInterval(()=>{s++;setDemoStep(s);if(s>=6){clearInterval(iv);setBuilding(false);setGenerated(true);}},900);
+    setImage(URL.createObjectURL(file));
+    runBuild('Campaign built from your creative — every layer is editable.');
+  }
+
+  function buildFromSite(){
+    if(!websiteResult)return;
+    const siteImage=websiteResult.images?.[0];
+    if(siteImage)setImage(siteImage);
+    setPage('Campaign Builder');
+    runBuild(`Campaign built from ${websiteResult.profile?.brand||'your site'} — every layer is editable.`);
   }
 
   function sendChat(){
@@ -116,6 +128,10 @@ export function App(){
       const d=await r.json();
       if(!r.ok)throw new Error(d.error||'Analysis failed.');
       setWebsiteResult(d);
+      if(d.profile?.brand)setCreatorName(d.profile.brand);
+      const positioning=d.profile?.positioning||'';
+      if(/luxury/i.test(positioning))setAngle('Luxury lifestyle');
+      else if(/fantasy|discreet/i.test(positioning))setAngle('Mysterious & exclusive');
     }catch(e:any){setWebsiteError(e.message);}
     finally{setWebsiteLoading(false);}
   }
@@ -171,10 +187,10 @@ export function App(){
           <div><span>ACCOUNT MANAGER</span><b>Priority desk</b></div>
         </div>}
 
-        {page==='Overview'&&<OverviewPage budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} mixOpen={mixOpen} setMixOpen={setMixOpen} mix={mix} setMix={setMix} totalMix={totalMix} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} isBlack={isBlack} websiteUrl={websiteUrl} setWebsiteUrl={setWebsiteUrl} websiteLoading={websiteLoading} websiteResult={websiteResult} websiteError={websiteError} analyzeWebsite={analyzeWebsite}/>}
-        {page==='Campaign Builder'&&<CampaignPage budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} setBillingOpen={setBillingOpen}/>}
+        {page==='Overview'&&<OverviewPage budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} mixOpen={mixOpen} setMixOpen={setMixOpen} mix={mix} setMix={setMix} totalMix={totalMix} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} isBlack={isBlack} websiteUrl={websiteUrl} setWebsiteUrl={setWebsiteUrl} websiteLoading={websiteLoading} websiteResult={websiteResult} websiteError={websiteError} analyzeWebsite={analyzeWebsite} buildFromSite={buildFromSite} onBuild={()=>runBuild('Campaign built — every layer is editable.')}/>}
+        {page==='Campaign Builder'&&<CampaignPage budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} setBillingOpen={setBillingOpen} adHook={websiteResult?.adSuggestions?.[0]} onBuild={()=>runBuild('Campaign built — every layer is editable.')}/>}
         {page==='Chat Studio'&&<ChatPage chatLog={chatLog} chatMsg={chatMsg} setChatMsg={setChatMsg} sendChat={sendChat} chatRef={chatRef} drawerOpen={drawerOpen} setDrawerOpen={setDrawerOpen} notify={notify}/>}
-        {page==='Model Assets'&&<AssetsPage websiteUrl={websiteUrl} setWebsiteUrl={setWebsiteUrl} websiteLoading={websiteLoading} websiteResult={websiteResult} websiteError={websiteError} analyzeWebsite={analyzeWebsite}/>}
+        {page==='Model Assets'&&<AssetsPage websiteUrl={websiteUrl} setWebsiteUrl={setWebsiteUrl} websiteLoading={websiteLoading} websiteResult={websiteResult} websiteError={websiteError} analyzeWebsite={analyzeWebsite} buildFromSite={buildFromSite}/>}
         {page==='Creatives'&&<CreativesPage image={image} upload={upload} fileRef={fileRef} notify={notify}/>}
         {page==='Traffic Mix'&&<TrafficPage mix={mix} setMix={setMix} totalMix={totalMix} notify={notify}/>}
         {page==='Forecast'&&<ForecastPage m={m} budget={budget} price={price}/>}
@@ -195,7 +211,7 @@ export function App(){
   );
 }
 
-function OverviewPage({budget,setBudget,price,setPrice,goal,setGoal,image,building,demoStep,generated,upload,fileRef,m,mixOpen,setMixOpen,mix,setMix,totalMix,angle,setAngle,region,setRegion,isBlack,websiteUrl,setWebsiteUrl,websiteLoading,websiteResult,websiteError,analyzeWebsite}:any){
+function OverviewPage({budget,setBudget,price,setPrice,goal,setGoal,image,building,demoStep,generated,upload,fileRef,m,mixOpen,setMixOpen,mix,setMix,totalMix,angle,setAngle,region,setRegion,isBlack,websiteUrl,setWebsiteUrl,websiteLoading,websiteResult,websiteError,analyzeWebsite,buildFromSite,onBuild}:any){
   return(
     <div className="intro">
       <div>
@@ -203,16 +219,16 @@ function OverviewPage({budget,setBudget,price,setPrice,goal,setGoal,image,buildi
         <h1>Command every channel.<br/><em>Scale what converts.</em></h1>
         <p>Your highest-access acquisition workspace—creative generation, premium traffic routing, forecast modeling, and campaign execution in one command center.</p>
       </div>
-      <Builder budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} mixOpen={mixOpen} setMixOpen={setMixOpen} mix={mix} setMix={setMix} totalMix={totalMix} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion}/>
-      {isBlack&&websiteUrl===''&&<div className="website-panel">
-        <div><span>MODEL INTELLIGENCE</span><h2>Website brand scan</h2><p>Drop your OF/Fansly URL — AI extracts brand signals, ad angles, and copy hooks for your campaigns.</p></div>
-        <div><div className="website-form"><input value={websiteUrl} onChange={e=>setWebsiteUrl(e.target.value)} placeholder="https://onlyfans.com/yourname" onKeyDown={e=>e.key==='Enter'&&analyzeWebsite()}/><button onClick={analyzeWebsite} disabled={websiteLoading}>{websiteLoading?<><i className="site-loader"/></>:<><Sparkles/>Scan</>}</button></div>{websiteError&&<div className="site-error">{websiteError}</div>}{websiteResult&&<div className="site-result"><div><span>BRAND</span><b>{websiteResult.profile?.brand}</b></div><div><span>POSITIONING</span><b>{websiteResult.profile?.positioning}</b></div><div><span>PRIMARY CTA</span><b>{websiteResult.profile?.primaryCta}</b></div><div><span>VOICE</span><b>{websiteResult.profile?.voice}</b></div>{websiteResult.adSuggestions?.slice(0,2).map((s:string,i:number)=><div key={i} className="wide"><span>AD HOOK {i+1}</span><b>{s}</b></div>)}</div>}</div>
+      <Builder budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} mixOpen={mixOpen} setMixOpen={setMixOpen} mix={mix} setMix={setMix} totalMix={totalMix} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} adHook={websiteResult?.adSuggestions?.[0]} onBuild={onBuild}/>
+      {isBlack&&<div className="website-panel">
+        <div><span>MODEL INTELLIGENCE</span><h2>Website brand scan</h2><p>Drop your OF/Fansly URL — AI extracts brand signals, ad angles, and copy hooks, then builds your campaign from them.</p></div>
+        <div><div className="website-form"><input value={websiteUrl} onChange={e=>setWebsiteUrl(e.target.value)} placeholder="https://onlyfans.com/yourname" onKeyDown={e=>e.key==='Enter'&&analyzeWebsite()}/><button onClick={analyzeWebsite} disabled={websiteLoading}>{websiteLoading?<><i className="site-loader"/></>:<><Sparkles/>Scan</>}</button></div>{websiteError&&<div className="site-error">{websiteError}</div>}{websiteResult&&<><div className="site-result"><div><span>BRAND</span><b>{websiteResult.profile?.brand}</b></div><div><span>POSITIONING</span><b>{websiteResult.profile?.positioning}</b></div><div><span>PRIMARY CTA</span><b>{websiteResult.profile?.primaryCta}</b></div><div><span>VOICE</span><b>{websiteResult.profile?.voice}</b></div>{websiteResult.adSuggestions?.slice(0,2).map((s:string,i:number)=><div key={i} className="wide"><span>AD HOOK {i+1}</span><b>{s}</b></div>)}</div><button className="primary" style={{marginTop:12}} onClick={buildFromSite}><WandSparkles/>Build campaign from this site</button></>}</div>
       </div>}
     </div>
   );
 }
 
-function CampaignPage({budget,setBudget,price,setPrice,goal,setGoal,image,building,demoStep,generated,upload,fileRef,m,angle,setAngle,region,setRegion,setBillingOpen}:any){
+function CampaignPage({budget,setBudget,price,setPrice,goal,setGoal,image,building,demoStep,generated,upload,fileRef,m,angle,setAngle,region,setRegion,setBillingOpen,adHook,onBuild}:any){
   const[step,setStep]=useState(1);
   return(
     <div className="campaign-flow">
@@ -224,7 +240,7 @@ function CampaignPage({budget,setBudget,price,setPrice,goal,setGoal,image,buildi
       </div>
       {step===1&&<div className="campaign-stage">
         <div className="stage-hero"><span>AI MEDIA BUYER</span><h1>Drop your photos.<br/><em>AI builds the campaign.</em></h1><p>From one creative to a complete campaign—objective, audience, placements, budget, copy, ad variations, and forecast.</p><button className="ai-do" onClick={()=>setStep(2)}><WandSparkles/>AI DO IT <ArrowUpRight/></button></div>
-        <Builder budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} aiMode/>
+        <Builder budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} adHook={adHook} onBuild={onBuild} aiMode/>
       </div>}
       {step===2&&<AdSetPage budget={budget} setBudget={setBudget} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} onNext={()=>setStep(3)}/>}
       {step===3&&<CreativesPage image={image} upload={upload} fileRef={fileRef} notify={(msg:string)=>{}} onLaunch={()=>setBillingOpen(true)}/>}
@@ -232,8 +248,18 @@ function CampaignPage({budget,setBudget,price,setPrice,goal,setGoal,image,buildi
   );
 }
 
-function Builder({budget,setBudget,price,setPrice,goal,setGoal,image,building,demoStep,generated,upload,fileRef,m,mixOpen,setMixOpen,mix,setMix,totalMix,angle,setAngle,region,setRegion,aiMode}:any){
+const angleHooks:Record<string,string>={
+  'Confident & playful':'Come see what everyone keeps talking about.',
+  'Mysterious & exclusive':'Some doors only open once. This is one of them.',
+  'Girl next door':'Your favorite girl, closer than ever.',
+  'Luxury lifestyle':'Indulge in the experience you deserve.',
+  'Fitness & wellness':'Strong, confident, completely unfiltered.',
+};
+
+function Builder({budget,setBudget,price,setPrice,goal,setGoal,image,building,demoStep,generated,upload,fileRef,m,mixOpen,setMixOpen,mix,setMix,totalMix,angle,setAngle,region,setRegion,adHook,onBuild,aiMode}:any){
   const totalMixVal=mix?mix.reduce((a:number,b:number)=>a+b,0):100;
+  const topChannels=[...channels].sort((a,b)=>b.base-a.base).slice(0,3).map(c=>c.name).join(' · ');
+  const copyHook=adHook||angleHooks[angle]||angleHooks['Confident & playful'];
   return(
     <div className="builder">
       <div className="upload" onClick={()=>fileRef?.current?.click()} style={{cursor:'pointer',position:'relative'}}>
@@ -251,8 +277,8 @@ function Builder({budget,setBudget,price,setPrice,goal,setGoal,image,building,de
           <div><b>AI campaign setup</b><span>{generated?'Campaign generated · ready to edit':'Upload photos to generate every layer'}</span></div>
         </div>
         <label>Total test budget<b>${budget.toLocaleString()}</b>
-          <input type="range" min={500} max={10000} step={100} value={budget} onChange={e=>setBudget(+e.target.value)}/>
-          <div style={{display:'flex',justifyContent:'space-between',fontSize:8,color:'#666',marginTop:4}}><span>$500</span><span>$10k</span></div>
+          <input type="range" min={100} max={10000} step={100} value={budget} onChange={e=>setBudget(+e.target.value)}/>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:8,color:'#666',marginTop:4}}><span>$100</span><span>$10k</span></div>
         </label>
         <label>Subscription price<b>${price}</b>
           <input type="range" min={4.99} max={49.99} step={1} value={price} onChange={e=>setPrice(+e.target.value)}/>
@@ -268,10 +294,16 @@ function Builder({budget,setBudget,price,setPrice,goal,setGoal,image,building,de
             {['United States · 21+','United Kingdom · 21+','Canada · 21+','Australia · 21+','Global · 21+'].map(r=><option key={r}>{r}</option>)}
           </select>
         </div>
-        <button className="primary" style={{width:'100%',padding:'14px',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8}} onClick={()=>{}}>
+        <button className="primary" style={{width:'100%',padding:'14px',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8}} onClick={()=>{image?onBuild?.():fileRef?.current?.click();}}>
           <Sparkles/>Build {aiMode?'full campaign':'my campaign'} with AI
         </button>
       </div>
+      {generated&&<div className="ai-output">
+        <div><span>OBJECTIVE</span><b>Subscriber growth</b><small>Optimized for paid conversions</small></div>
+        <div><span>AUDIENCE</span><b>{region}</b><small>{angle}</small></div>
+        <div><span>PLACEMENTS</span><b>{topChannels}</b><small>Top sources by modeled ROI</small></div>
+        <div><span>AD COPY</span><b>{copyHook}</b><small>{adHook?'Pulled from your site scan':'Generated from your creative angle'}</small></div>
+      </div>}
       <div className="metrics">
         <div className="forecast-lead">
           <span>MODELED MIDPOINT</span>
@@ -313,7 +345,7 @@ function AdSetPage({budget,setBudget,angle,setAngle,region,setRegion,onNext}:any
           <label>Audience type<select><option>High-intent · lookalike</option><option>Broad · interest</option><option>Retargeting</option></select></label>
         </section>
         <section><h2>BUDGET</h2>
-          <label>Daily test budget<b>${budget.toLocaleString()}</b><input type="range" min={500} max={10000} step={100} value={budget} onChange={e=>setBudget(+e.target.value)}/></label>
+          <label>Daily test budget<b>${budget.toLocaleString()}</b><input type="range" min={100} max={10000} step={100} value={budget} onChange={e=>setBudget(+e.target.value)}/></label>
           <label>Bid strategy<select><option>Auto · AI optimized</option><option>Manual CPC</option><option>Target CPA</option></select></label>
         </section>
         <section><h2>SCHEDULE</h2>
@@ -354,7 +386,7 @@ function ChatPage({chatLog,chatMsg,setChatMsg,sendChat,chatRef,drawerOpen,setDra
   );
 }
 
-function AssetsPage({websiteUrl,setWebsiteUrl,websiteLoading,websiteResult,websiteError,analyzeWebsite}:any){
+function AssetsPage({websiteUrl,setWebsiteUrl,websiteLoading,websiteResult,websiteError,analyzeWebsite,buildFromSite}:any){
   return(
     <div className="workspace">
       <div className="workspace-head"><div><span>MODEL ASSETS</span><h1>Brand intelligence</h1><p>Scan your creator page to extract brand signals and ad copy hooks.</p></div></div>
@@ -369,6 +401,7 @@ function AssetsPage({websiteUrl,setWebsiteUrl,websiteLoading,websiteResult,websi
           <div><span>TOP CTA</span><b>{websiteResult.profile?.primaryCta}</b></div>
           {websiteResult.adSuggestions?.map((s:string,i:number)=><div key={i} className="wide"><span>AD HOOK {i+1}</span><b>{s}</b></div>)}
         </div>}
+        {websiteResult&&<button className="primary" style={{marginTop:12}} onClick={buildFromSite}><WandSparkles/>Build campaign from this site</button>}
         </div>
       </div>
     </div>
