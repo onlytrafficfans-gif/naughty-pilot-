@@ -57,6 +57,7 @@ export function App(){
   const[price,setPrice]=useState(19.99);
   const[goal,setGoal]=useState(240);
   const[images,setImages]=useState<string[]>([]);
+  const[aiCampaign,setAiCampaign]=useState<any>(null);
   const image=images[0]||null;
   const[building,setBuilding]=useState(false);
   const[demoStep,setDemoStep]=useState(0);
@@ -98,12 +99,46 @@ export function App(){
     const iv=setInterval(()=>{s++;setDemoStep(s);if(s>=6){clearInterval(iv);setBuilding(false);setGenerated(true);if(doneMsg)notify(doneMsg);}},900);
   }
 
-  function upload(files?:FileList|null){
+  async function requestAiCampaign(payloads:{url?:string,base64?:string}[]){
+    setAiCampaign(null);
+    try{
+      const r=await fetch('/api/generate-campaign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        images:payloads.slice(0,6),angle,region,budget,price,
+        brand:websiteResult?.profile?.brand,positioning:websiteResult?.profile?.positioning,
+        siteHooks:websiteResult?.adSuggestions?.slice(0,3),
+      })});
+      if(!r.ok)throw new Error();
+      setAiCampaign(await r.json());
+    }catch{/* heuristic fallbacks stay in place */}
+  }
+
+  function fileToResizedDataUrl(file:File):Promise<string>{
+    return new Promise((resolve,reject)=>{
+      const img=new Image();
+      const objectUrl=URL.createObjectURL(file);
+      img.onload=()=>{
+        const max=640,scale=Math.min(1,max/Math.max(img.width,img.height));
+        const canvas=document.createElement('canvas');
+        canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);
+        canvas.getContext('2d')!.drawImage(img,0,0,canvas.width,canvas.height);
+        resolve(canvas.toDataURL('image/jpeg',.75));
+      };
+      img.onerror=reject;
+      img.src=objectUrl;
+    });
+  }
+
+  async function upload(files?:FileList|null){
     if(!files||!files.length)return;
-    const urls=[...files].filter(f=>f.type.startsWith('image/')).map(f=>URL.createObjectURL(f));
-    if(!urls.length)return;
+    const list=[...files].filter(f=>f.type.startsWith('image/'));
+    if(!list.length)return;
+    const urls=list.map(f=>URL.createObjectURL(f));
     setImages(prev=>[...prev,...urls]);
     runBuild(`Campaign built from ${urls.length>1?`${urls.length} creatives`:'your creative'} — every layer is editable.`);
+    try{
+      const payloads=await Promise.all(list.map(async f=>({base64:await fileToResizedDataUrl(f)})));
+      requestAiCampaign(payloads);
+    }catch{/* keep heuristics */}
   }
 
   function buildFromSite(){
@@ -112,6 +147,7 @@ export function App(){
     if(siteImages.length)setImages(siteImages);
     setPage('Campaign Builder');
     runBuild(`Campaign built from ${websiteResult.profile?.brand||'your site'} — every layer is editable.`);
+    if(siteImages.length)requestAiCampaign(siteImages.map((u:string)=>({url:u})));
   }
 
   function sendChat(){
@@ -190,11 +226,11 @@ export function App(){
           </div>
         </header>
 
-        {page==='Overview'&&<OverviewPage budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} images={images} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} mixOpen={mixOpen} setMixOpen={setMixOpen} mix={mix} setMix={setMix} totalMix={totalMix} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} isBlack={isBlack} websiteUrl={websiteUrl} setWebsiteUrl={setWebsiteUrl} websiteLoading={websiteLoading} websiteResult={websiteResult} websiteError={websiteError} analyzeWebsite={analyzeWebsite} buildFromSite={buildFromSite} onBuild={()=>runBuild('Campaign built — every layer is editable.')}/>}
-        {page==='Campaign Builder'&&<CampaignPage budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} images={images} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} setBillingOpen={setBillingOpen} adHook={websiteResult?.adSuggestions?.[0]} onBuild={()=>runBuild('Campaign built — every layer is editable.')}/>}
+        {page==='Overview'&&<OverviewPage budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} images={images} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} mixOpen={mixOpen} setMixOpen={setMixOpen} mix={mix} setMix={setMix} totalMix={totalMix} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} isBlack={isBlack} websiteUrl={websiteUrl} setWebsiteUrl={setWebsiteUrl} websiteLoading={websiteLoading} websiteResult={websiteResult} websiteError={websiteError} analyzeWebsite={analyzeWebsite} buildFromSite={buildFromSite} aiCampaign={aiCampaign} onBuild={()=>runBuild('Campaign built — every layer is editable.')}/>}
+        {page==='Campaign Builder'&&<CampaignPage budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} images={images} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} setBillingOpen={setBillingOpen} adHook={websiteResult?.adSuggestions?.[0]} aiCampaign={aiCampaign} onBuild={()=>runBuild('Campaign built — every layer is editable.')}/>}
         {page==='Chat Studio'&&<ChatPage chatLog={chatLog} chatMsg={chatMsg} setChatMsg={setChatMsg} sendChat={sendChat} chatRef={chatRef} drawerOpen={drawerOpen} setDrawerOpen={setDrawerOpen} notify={notify}/>}
         {page==='Model Assets'&&<AssetsPage websiteUrl={websiteUrl} setWebsiteUrl={setWebsiteUrl} websiteLoading={websiteLoading} websiteResult={websiteResult} websiteError={websiteError} analyzeWebsite={analyzeWebsite} buildFromSite={buildFromSite}/>}
-        {page==='Creatives'&&<CreativesPage images={images} upload={upload} fileRef={fileRef} notify={notify}/>}
+        {page==='Creatives'&&<CreativesPage images={images} aiCampaign={aiCampaign} upload={upload} fileRef={fileRef} notify={notify}/>}
         {page==='Traffic Mix'&&<TrafficPage mix={mix} setMix={setMix} totalMix={totalMix} notify={notify}/>}
         {page==='Forecast'&&<ForecastPage m={m} budget={budget} price={price}/>}
         {page==='Launch Plan'&&<LaunchPage m={m} budget={budget} price={price} creatorName={creatorName} setBillingOpen={setBillingOpen} notify={notify}/>}
@@ -215,7 +251,7 @@ export function App(){
   );
 }
 
-function OverviewPage({budget,setBudget,price,setPrice,goal,setGoal,image,images,building,demoStep,generated,upload,fileRef,m,mixOpen,setMixOpen,mix,setMix,totalMix,angle,setAngle,region,setRegion,isBlack,websiteUrl,setWebsiteUrl,websiteLoading,websiteResult,websiteError,analyzeWebsite,buildFromSite,onBuild}:any){
+function OverviewPage({budget,setBudget,price,setPrice,goal,setGoal,image,images,building,demoStep,generated,upload,fileRef,m,mixOpen,setMixOpen,mix,setMix,totalMix,angle,setAngle,region,setRegion,isBlack,websiteUrl,setWebsiteUrl,websiteLoading,websiteResult,websiteError,analyzeWebsite,buildFromSite,aiCampaign,onBuild}:any){
   return(
     <div className="intro">
       <div>
@@ -223,7 +259,7 @@ function OverviewPage({budget,setBudget,price,setPrice,goal,setGoal,image,images
         <h1>Command every channel.<br/><em>Scale what converts.</em></h1>
         <p>Your highest-access acquisition workspace—creative generation, premium traffic routing, forecast modeling, and campaign execution in one command center.</p>
       </div>
-      <Builder budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} images={images} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} mixOpen={mixOpen} setMixOpen={setMixOpen} mix={mix} setMix={setMix} totalMix={totalMix} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} adHook={websiteResult?.adSuggestions?.[0]} onBuild={onBuild}/>
+      <Builder budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} images={images} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} mixOpen={mixOpen} setMixOpen={setMixOpen} mix={mix} setMix={setMix} totalMix={totalMix} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} adHook={websiteResult?.adSuggestions?.[0]} aiCampaign={aiCampaign} onBuild={onBuild}/>
       {isBlack&&<div className="website-panel">
         <div><span>MODEL INTELLIGENCE</span><h2>Website brand scan</h2><p>Drop your OF/Fansly URL — AI extracts brand signals, ad angles, and copy hooks, then builds your campaign from them.</p></div>
         <div><div className="website-form"><input value={websiteUrl} onChange={e=>setWebsiteUrl(e.target.value)} placeholder="https://onlyfans.com/yourname" onKeyDown={e=>e.key==='Enter'&&analyzeWebsite()}/><button onClick={analyzeWebsite} disabled={websiteLoading}>{websiteLoading?<><i className="site-loader"/></>:<><Sparkles/>Scan</>}</button></div>{websiteError&&<div className="site-error">{websiteError}</div>}{websiteResult&&<><div className="site-result"><div><span>BRAND</span><b>{websiteResult.profile?.brand}</b></div><div><span>POSITIONING</span><b>{websiteResult.profile?.positioning}</b></div><div><span>PRIMARY CTA</span><b>{websiteResult.profile?.primaryCta}</b></div><div><span>VOICE</span><b>{websiteResult.profile?.voice}</b></div>{websiteResult.adSuggestions?.slice(0,2).map((s:string,i:number)=><div key={i} className="wide"><span>AD HOOK {i+1}</span><b>{s}</b></div>)}</div><button className="primary" style={{marginTop:12}} onClick={buildFromSite}><WandSparkles/>Build campaign from this site</button></>}</div>
@@ -232,7 +268,7 @@ function OverviewPage({budget,setBudget,price,setPrice,goal,setGoal,image,images
   );
 }
 
-function CampaignPage({budget,setBudget,price,setPrice,goal,setGoal,image,images,building,demoStep,generated,upload,fileRef,m,angle,setAngle,region,setRegion,setBillingOpen,adHook,onBuild}:any){
+function CampaignPage({budget,setBudget,price,setPrice,goal,setGoal,image,images,building,demoStep,generated,upload,fileRef,m,angle,setAngle,region,setRegion,setBillingOpen,adHook,aiCampaign,onBuild}:any){
   const[step,setStep]=useState(1);
   return(
     <div className="campaign-flow">
@@ -244,10 +280,10 @@ function CampaignPage({budget,setBudget,price,setPrice,goal,setGoal,image,images
       </div>
       {step===1&&<div className="campaign-stage">
         <div className="stage-hero"><span>AI MEDIA BUYER</span><h1>Drop your photos.<br/><em>AI builds the campaign.</em></h1><p>From one creative to a complete campaign—objective, audience, placements, budget, copy, ad variations, and forecast.</p><button className="ai-do" onClick={()=>setStep(2)}><WandSparkles/>AI DO IT <ArrowUpRight/></button></div>
-        <Builder budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} images={images} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} adHook={adHook} onBuild={onBuild} aiMode/>
+        <Builder budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} images={images} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} adHook={adHook} aiCampaign={aiCampaign} onBuild={onBuild} aiMode/>
       </div>}
       {step===2&&<AdSetPage budget={budget} setBudget={setBudget} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} onNext={()=>setStep(3)}/>}
-      {step===3&&<CreativesPage images={images} upload={upload} fileRef={fileRef} notify={(msg:string)=>{}} onLaunch={()=>setBillingOpen(true)}/>}
+      {step===3&&<CreativesPage images={images} aiCampaign={aiCampaign} upload={upload} fileRef={fileRef} notify={(msg:string)=>{}} onLaunch={()=>setBillingOpen(true)}/>}
     </div>
   );
 }
@@ -260,10 +296,12 @@ const angleHooks:Record<string,string>={
   'Fitness & wellness':'Strong, confident, completely unfiltered.',
 };
 
-function Builder({budget,setBudget,price,setPrice,goal,setGoal,image,images,building,demoStep,generated,upload,fileRef,m,mixOpen,setMixOpen,mix,setMix,totalMix,angle,setAngle,region,setRegion,adHook,onBuild,aiMode}:any){
+function Builder({budget,setBudget,price,setPrice,goal,setGoal,image,images,building,demoStep,generated,upload,fileRef,m,mixOpen,setMixOpen,mix,setMix,totalMix,angle,setAngle,region,setRegion,adHook,aiCampaign,onBuild,aiMode}:any){
   const totalMixVal=mix?mix.reduce((a:number,b:number)=>a+b,0):100;
   const topChannels=[...channels].sort((a,b)=>b.base-a.base).slice(0,3).map(c=>c.name).join(' · ');
-  const copyHook=adHook||angleHooks[angle]||angleHooks['Confident & playful'];
+  const copyHook=aiCampaign?.adCopy?.[0]?.hook||adHook||angleHooks[angle]||angleHooks['Confident & playful'];
+  const objective=aiCampaign?.objective||'Subscriber growth';
+  const audienceNote=aiCampaign?.audienceNotes||angle;
   return(
     <div className="builder">
       <div className="upload" onClick={()=>fileRef?.current?.click()} style={{cursor:'pointer',position:'relative'}}>
@@ -303,10 +341,10 @@ function Builder({budget,setBudget,price,setPrice,goal,setGoal,image,images,buil
         </button>
       </div>
       {generated&&<div className="ai-output">
-        <div><span>OBJECTIVE</span><b>Subscriber growth</b><small>Optimized for paid conversions</small></div>
-        <div><span>AUDIENCE</span><b>{region}</b><small>{angle}</small></div>
-        <div><span>PLACEMENTS</span><b>{topChannels}</b><small>Top sources by modeled ROI</small></div>
-        <div><span>AD COPY</span><b>{copyHook}</b><small>{adHook?'Pulled from your site scan':'Generated from your creative angle'}</small></div>
+        <div><span>OBJECTIVE</span><b>{objective}</b><small>Optimized for paid conversions</small></div>
+        <div><span>AUDIENCE</span><b>{region}</b><small>{audienceNote}</small></div>
+        <div><span>PLACEMENTS</span><b>{aiCampaign?.ranking?.[0]?.placement||topChannels}</b><small>Top sources by modeled ROI</small></div>
+        <div><span>AD COPY</span><b>{copyHook}</b><small>{aiCampaign?'Written by AI from your photos':adHook?'Pulled from your site scan':'Generated from your creative angle'}</small></div>
       </div>}
       <div className="metrics">
         <div className="forecast-lead">
@@ -417,15 +455,18 @@ function rankImages(images:string[]){
   return images.map((src,i)=>({src,ctr:score(src,i)})).sort((a,b)=>b.ctr-a.ctr);
 }
 
-function CreativesPage({images,upload,fileRef,notify,onLaunch}:any){
-  const ranked=rankImages(images||[]);
+function CreativesPage({images,aiCampaign,upload,fileRef,notify,onLaunch}:any){
+  const heuristic=rankImages(images||[]);
+  const ranked=aiCampaign?.ranking?.length
+    ?aiCampaign.ranking.filter((r:any)=>images?.[r.index]).map((r:any)=>({src:images[r.index],ctr:r.score,reason:r.reason,placement:r.placement}))
+    :heuristic;
   const variants=['Confidence lead','Exclusive angle','FOMO hook','Direct CTA','Lifestyle frame','Value stack'];
   const audiences=['21+ US','Global','US/UK','Retarget','Lookalike','Broad'];
   const placements=['TrafficJunky · CPM','ExoClick · Native','JuicyAds · Banner','Reddit · Organic','X / Social','Creator swaps'];
   const count=Math.max(6,ranked.length);
   return(
     <div className="workspace">
-      <div className="workspace-head"><div><span>CREATIVES</span><h1>Ad variations</h1><p>{ranked.length?`AI ranked ${ranked.length} creative${ranked.length>1?'s':''} by predicted CTR and matched each to its best placement.`:'Upload photos — AI generates ranked ad variants and placement recommendations.'}</p></div>
+      <div className="workspace-head"><div><span>CREATIVES</span><h1>Ad variations</h1><p>{ranked.length?`${aiCampaign?'AI vision analysis ranked':'AI ranked'} ${ranked.length} creative${ranked.length>1?'s':''} by predicted performance and matched each to its best placement.`:'Upload photos — AI generates ranked ad variants and placement recommendations.'}</p></div>
         <div style={{display:'flex',gap:8}}>
           <button onClick={()=>fileRef?.current?.click()}><Upload style={{width:14}}/>Add creatives</button>
           {onLaunch&&<button className="primary" onClick={onLaunch}><Rocket style={{width:14}}/>Fund &amp; launch</button>}
@@ -443,12 +484,15 @@ function CreativesPage({images,upload,fileRef,notify,onLaunch}:any){
                 {i<ranked.length&&<span style={{background:isTop?'#d71920':'#1c0e0e',border:'1px solid #d71920',color:'#fff',fontSize:7,fontFamily:'DM Mono',padding:'3px 7px',borderRadius:3}}>{isTop?'★ RANK #1':`RANK #${i+1}`}</span>}
                 <span style={{background:'#000c',color:'#fff',fontSize:7,fontFamily:'DM Mono',padding:'3px 7px',borderRadius:3}}>VARIANT {i+1}</span>
               </div>
-              {r&&<span style={{position:'absolute',bottom:8,right:8,background:'#000c',color:'#8fdc7a',fontSize:7,fontFamily:'DM Mono',padding:'3px 7px',borderRadius:3}}>CTR {r.ctr.toFixed(1)}%</span>}
+              {r&&<span style={{position:'absolute',bottom:8,right:8,background:'#000c',color:'#8fdc7a',fontSize:7,fontFamily:'DM Mono',padding:'3px 7px',borderRadius:3}}>{aiCampaign?`SCORE ${Number(r.ctr).toFixed(1)}/10`:`CTR ${Number(r.ctr).toFixed(1)}%`}</span>}
             </div>
             <div style={{padding:12}}>
-              <h3 style={{fontSize:10,marginBottom:4,color:'#fff'}}>{variants[i%6]}</h3>
-              <p style={{fontSize:9,color:'#888',margin:0,marginBottom:4}}>{audiences[i%6]} audience</p>
-              <p style={{fontSize:8,color:'#ef2931',fontFamily:'DM Mono',margin:0,marginBottom:8}}>PLACE: {placements[i%6]}</p>
+              <h3 style={{fontSize:10,marginBottom:4,color:'#fff'}}>{aiCampaign?.adCopy?.[i]?.variant||variants[i%6]}</h3>
+              {aiCampaign?.adCopy?.[i]?.hook
+                ?<p style={{fontSize:9,color:'#c9b9b9',margin:0,marginBottom:4,lineHeight:1.5}}>&ldquo;{aiCampaign.adCopy[i].hook}&rdquo;</p>
+                :<p style={{fontSize:9,color:'#888',margin:0,marginBottom:4}}>{audiences[i%6]} audience</p>}
+              {(r as any)?.reason&&<p style={{fontSize:8,color:'#7a6a6a',margin:0,marginBottom:4,lineHeight:1.5}}>{(r as any).reason}</p>}
+              <p style={{fontSize:8,color:'#ef2931',fontFamily:'DM Mono',margin:0,marginBottom:8}}>PLACE: {(r as any)?.placement||placements[i%6]}</p>
               <button style={{background:'#d71920',border:0,color:'#fff',padding:'7px 12px',borderRadius:4,fontSize:8,fontFamily:'DM Mono',cursor:'pointer',display:'flex',alignItems:'center',gap:6}} onClick={()=>notify(`Variant ${i+1} added to campaign.`)}><Check style={{width:10}}/>Use this</button>
             </div>
           </div>
