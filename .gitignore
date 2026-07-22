@@ -5,3 +5,4 @@ naughty-pilot-prototype.zip
 dist/
 package-lock.json
 .vercel
+.env*
