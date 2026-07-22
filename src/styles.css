@@ -208,6 +208,64 @@ select{background:#111;border:1px solid #2a1414;border-radius:5px;color:#ccc;pad
 .example-hero-meta span{font:9px 'DM Mono';color:#7a6a6a}
 .example-hero-meta em{font:600 9px 'DM Mono';color:#8fdc7a;font-style:normal;margin-top:4px}
 
+/* ── FORECAST ENGINE UI ─────────────────── */
+.panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.panel-head h3{font:600 9px 'DM Mono';color:#7a6a6a;letter-spacing:.1em;margin:0}
+.ghost-btn{border:1px solid #3d1718;background:#100708;color:#ccc;padding:7px 12px;border-radius:5px;display:inline-flex;align-items:center;gap:6px;font:600 9px 'DM Mono';cursor:pointer}
+.ghost-btn:hover:not(:disabled){border-color:#641313;color:#fff}
+.ghost-btn:disabled{opacity:.4;cursor:not-allowed}
+.assump-panel,.traffic-table-wrap{border:1px solid #2a1414;border-radius:10px;background:#080808;padding:16px;margin-bottom:16px}
+.assump-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.numfield{display:grid;gap:5px;min-width:0}
+.numfield>span{font:9px 'DM Mono';color:#8a7a7a}
+.numfield-input{display:flex;align-items:center;background:#111;border:1px solid #2a1414;border-radius:5px;padding:0 8px;height:34px}
+.numfield-input.bad{border-color:#ff6b6b}
+.numfield-input em{font:600 9px 'DM Mono';color:#7a6a6a;font-style:normal}
+.numfield-input input{flex:1;min-width:0;background:transparent;border:0;color:#fff;padding:0 6px;font:600 12px Manrope;outline:none}
+.numfield select{background:#111;border:1px solid #2a1414;border-radius:5px;color:#fff;height:34px;padding:0 8px;font-size:11px}
+.steppers{display:flex;flex-direction:column}
+.steppers button{all:unset;cursor:pointer;width:18px;height:16px;display:grid;place-items:center;color:#8a7a7a;font-size:11px;line-height:1}
+.steppers button:hover{color:var(--red)}
+.assump-warn{margin-top:10px;color:#ff6b6b;font-size:10px}
+.tsrc-table{border:1px solid #221010;border-radius:8px;overflow:hidden}
+.tsrc-row{display:grid;grid-template-columns:44px minmax(0,1.6fr) repeat(5,minmax(0,.85fr)) minmax(0,.8fr);align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #1c0e0e}
+.tsrc-row:last-child{border-bottom:0}
+.tsrc-head{background:#0c0404;color:#6a5a5a;font:600 8px 'DM Mono';letter-spacing:.05em}
+.tsrc-row.off{opacity:.45}
+.tsrc-name{display:grid;font-size:11px;color:#e1d4d4}
+.tsrc-name small{font-size:8px;color:#6a5a5a}
+.tsrc-row input{background:#111;border:1px solid #2a1414;border-radius:4px;color:#fff;padding:6px;font:11px 'DM Mono';width:100%;min-width:0}
+.tsrc-net{font:700 12px 'DM Mono';color:#8fdc7a;text-align:right}
+.alloc-total{display:flex;align-items:center;gap:12px;padding:10px 12px;margin-top:10px;border:1px solid #2a1414;border-radius:6px;background:#0a0404;font-size:10px}
+.alloc-total b{font:700 13px 'DM Mono'}
+.alloc-total.ok b{color:#8fdc7a}
+.alloc-total.bad b{color:#ff6b6b}
+.alloc-total em{font-style:normal;color:#c99;font-size:9px;margin-left:auto}
+.forecast-empty,.forecast-out{border:1px solid #2a1414;border-radius:10px;background:#080808;padding:20px}
+.forecast-empty{color:#8a7a7a;font-size:12px;text-align:center;padding:40px}
+.forecast-primary{display:grid;grid-template-columns:240px minmax(0,1fr);gap:20px}
+.fc-mid{border-right:1px solid #2a1414;padding-right:20px}
+.fc-mid>span{font:9px 'DM Mono';color:#8a7a7a}
+.fc-mid strong{display:block;font:700 60px Manrope;color:var(--red);line-height:1;margin:6px 0 2px}
+.fc-mid p{font-size:10px;color:#8a7a7a;margin:0}
+.fc-range{margin-top:8px!important}
+.fc-range b{color:var(--red)}
+.fc-warn{color:#ffb36b!important;margin-top:6px!important}
+.fc-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#1c0e0e;border:1px solid #1c0e0e;border-radius:8px;overflow:hidden}
+.fc-metric{background:#080808;padding:12px 14px;display:grid;gap:5px}
+.fc-metric span{font:8px 'DM Mono';color:#7a6a6a;letter-spacing:.05em}
+.fc-metric b{font:700 15px Manrope;color:#fff}
+.fc-note{font-size:9px;color:#6a5a5a;line-height:1.6;margin:14px 0 10px}
+.fc-detail{margin-top:12px;border:1px solid #221010;border-radius:8px;overflow:hidden}
+.fc-detail-row{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(5,minmax(0,1fr));gap:8px;padding:9px 12px;border-bottom:1px solid #1c0e0e;font:10px 'DM Mono';color:#c9b9b9}
+.fc-detail-row:last-child{border-bottom:0}
+.fc-detail-head{background:#0c0404;color:#6a5a5a;font-weight:600;font-size:8px}
+.scenario-bar{display:flex;gap:6px;align-items:center}
+.scenario-bar select{background:#111;border:1px solid #2a1414;border-radius:5px;color:#fff;height:32px;padding:0 8px;font-size:10px;min-width:150px}
+.scenario-bar button{border:1px solid #3d1718;background:#100708;color:#ccc;padding:8px 11px;border-radius:5px;font:600 9px 'DM Mono';cursor:pointer}
+.scenario-bar button:hover:not(:disabled){border-color:#641313;color:#fff}
+.scenario-bar button:disabled{opacity:.4;cursor:not-allowed}
+
 /* ── TRAFFIC TABLE ──────────────────────── */
 .traffic-table{border:1px solid #2a1414;border-radius:10px;overflow:hidden;margin-bottom:16px}
 .tr{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 80px;align-items:center;padding:14px 18px;border-bottom:1px solid #1c0e0e;font-size:10px}

@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Upload, Sparkles, LayoutDashboard, WandSparkles, ChartNoAxesCombined, Route, Rocket, SlidersHorizontal, Check, CircleDollarSign, MousePointer2, Eye, Users, TrendingUp, Info, ArrowUpRight, Image as ImageIcon, RotateCw, ShieldCheck, Bell, Settings, Zap, MessageCircle, Plus, Bot, Library, CreditCard, LockKeyhole, X, Send, Layers3 } from 'lucide-react';
 import './styles.css';
+import { computeForecast, normalizeAllocations, DEFAULT_ASSUMPTIONS, DEFAULT_SOURCES, type CampaignAssumptions, type TrafficSourceAssumption } from './lib/forecastEngine';
+
+const SCENARIO_KEY='np.scenarios.v1';
+function loadScenarios():any[]{try{return JSON.parse(localStorage.getItem(SCENARIO_KEY)||'[]');}catch{return[];}}
+function saveScenarios(list:any[]){try{localStorage.setItem(SCENARIO_KEY,JSON.stringify(list));}catch{/* storage unavailable */}}
 
 const channels = [
   { name:'TrafficJunky', model:'CPM', color:'#ff554f', base:24, note:'Tube inventory · keyword + geo' },
@@ -42,20 +47,16 @@ const skillCatalog=[
   [Settings,'A/B Test Planner','Design split tests with statistical confidence'],
 ];
 
-function model(budget:number,price:number,goal:number){
-  const cpc=.10,ctr=.043,cvr=.04;
-  const clicks=Math.round((budget/cpc)*ctr*10);
-  const visits=Math.round(clicks*ctr*100);
-  const mid=Math.round(visits*cvr);
-  const rev=mid*price;
-  return{clicks,visits,mid,low:Math.round(mid*.68),high:Math.round(mid*1.32),rev,roas:(rev/budget)};
-}
-
 export function App(){
   const[page,setPage]=useState('Overview');
-  const[budget,setBudget]=useState(300);
-  const[price,setPrice]=useState(19.99);
-  const[goal,setGoal]=useState(240);
+  const[assumptions,setAssumptions]=useState<CampaignAssumptions>(DEFAULT_ASSUMPTIONS);
+  const[sources,setSources]=useState<TrafficSourceAssumption[]>(DEFAULT_SOURCES);
+  const[scenarios,setScenarios]=useState<any[]>(()=>loadScenarios());
+  // budget/price/goal remain single-sourced from assumptions so every surface stays in sync.
+  const budget=assumptions.totalBudget, price=assumptions.subscriptionPrice, goal=assumptions.targetSubscribers;
+  const setBudget=(v:number)=>setAssumptions(a=>({...a,totalBudget:v}));
+  const setPrice=(v:number)=>setAssumptions(a=>({...a,subscriptionPrice:v}));
+  const setGoal=(v:number)=>setAssumptions(a=>({...a,targetSubscribers:v}));
   const[images,setImages]=useState<string[]>([]);
   const[assets,setAssets]=useState<any[]>([]);
   const[aiCampaign,setAiCampaign]=useState<any>(null);
@@ -82,7 +83,14 @@ export function App(){
   const fileRef=useRef<HTMLInputElement>(null);
   const chatRef=useRef<HTMLDivElement>(null);
 
-  const m=useMemo(()=>model(budget,price,goal),[budget,price,goal]);
+  const forecast=useMemo(()=>computeForecast(assumptions,sources),[assumptions,sources]);
+  // Compatibility shape for surfaces that read the older `m` object (Overview, Chat, Launch).
+  const m=useMemo(()=>({
+    clicks:Math.round(forecast.totalClicks),visits:Math.round(forecast.totalLandingVisits),
+    mid:forecast.midpoint,low:forecast.low,high:forecast.high,rev:forecast.totalRevenue,roas:forecast.roas,
+  }),[forecast]);
+
+  useEffect(()=>{saveScenarios(scenarios);},[scenarios]);
   const totalMix=mix.reduce((a,b)=>a+b,0);
 
   function notify(msg:string){setToast(msg);setTimeout(()=>setToast(null),3200);}
@@ -295,8 +303,8 @@ export function App(){
         {page==='Chat Studio'&&<ChatPage chatLog={chatLog} chatMsg={chatMsg} setChatMsg={setChatMsg} sendChat={sendChat} chatRef={chatRef} drawerOpen={drawerOpen} setDrawerOpen={setDrawerOpen} notify={notify}/>}
         {page==='Model Assets'&&<AssetsPage websiteUrl={websiteUrl} setWebsiteUrl={setWebsiteUrl} websiteLoading={websiteLoading} websiteResult={websiteResult} websiteError={websiteError} analyzeWebsite={analyzeWebsite} buildFromSite={buildFromSite}/>}
         {page==='Creatives'&&<CreativesPage assets={assets} submitBrief={submitBrief} upload={upload} fileRef={fileRef}/>}
-        {page==='Traffic Mix'&&<TrafficPage mix={mix} setMix={setMix} totalMix={totalMix} notify={notify}/>}
-        {page==='Forecast'&&<ForecastPage m={m} budget={budget} price={price}/>}
+        {page==='Traffic Mix'&&<TrafficPage sources={sources} setSources={setSources} forecast={forecast} notify={notify}/>}
+        {page==='Forecast'&&<ForecastPage assumptions={assumptions} setAssumptions={setAssumptions} sources={sources} setSources={setSources} forecast={forecast} scenarios={scenarios} setScenarios={setScenarios} notify={notify}/>}
         {page==='Launch Plan'&&<LaunchPage m={m} budget={budget} price={price} creatorName={creatorName} setBillingOpen={setBillingOpen} notify={notify}/>}
         {page==='AI Skills'&&<SkillsPage notify={notify}/>}
         {page==='Naughty Cheat Codes'&&<CheatCodesPage notify={notify} loadCode={loadCheatCode}/>}
@@ -422,7 +430,7 @@ function Builder({budget,setBudget,price,setPrice,goal,setGoal,image,images,buil
         <div className="metric"><Eye/><span>Landing visits</span><b>{m.visits.toLocaleString()}</b></div>
         <div className="metric"><Users/><span>Paid conversions</span><b>{m.mid}</b></div>
         <div className="metric"><TrendingUp/><span>Modeled revenue</span><b>${m.rev.toLocaleString(undefined,{maximumFractionDigits:0})}</b></div>
-        <div className="metric"><Info/><span>Visit → paid</span><b>{(m.roas*2).toFixed(2)}%</b></div>
+        <div className="metric"><Info/><span>Visit → paid</span><b>{(m.visits>0?(m.mid/m.visits*100):0).toFixed(2)}%</b></div>
       </div>
       {setMixOpen&&<div className="mix">
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
@@ -648,60 +656,169 @@ function CreativesPage({assets,submitBrief,upload,fileRef,onLaunch}:any){
   );
 }
 
-function TrafficPage({mix,setMix,totalMix,notify}:any){
-  const total=mix.reduce((a:number,b:number)=>a+b,0);
+// Compact numeric field with direct typing + ± steppers. No sliders.
+function NumField({label,value,onChange,step=1,min,max,prefix,suffix,width}:any){
+  const clamp=(v:number)=>{let n=v;if(typeof min==='number')n=Math.max(min,n);if(typeof max==='number')n=Math.min(max,n);return n;};
+  const invalid=(typeof min==='number'&&value<min)||(typeof max==='number'&&value>max)||!Number.isFinite(value);
   return(
-    <div className="workspace">
-      <div className="workspace-head"><div><span>TRAFFIC MIX</span><h1>Channel allocation</h1><p>Research-backed source presets with live allocation controls.</p></div>
-        <div className="traffic-actions">
-          <button onClick={()=>{setMix(channels.map(c=>c.base));notify('Mix reset to AI recommendation.');}}><RotateCw style={{width:12}}/>Reset to AI</button>
+    <label className="numfield" style={width?{width}:undefined}>
+      <span>{label}</span>
+      <div className={`numfield-input${invalid?' bad':''}`}>
+        {prefix&&<em>{prefix}</em>}
+        <input type="number" value={Number.isFinite(value)?value:''} step={step} min={min} max={max}
+          onChange={e=>onChange(clamp(e.target.value===''?0:parseFloat(e.target.value)))}/>
+        {suffix&&<em>{suffix}</em>}
+        <div className="steppers">
+          <button type="button" onClick={()=>onChange(clamp((value||0)+step))}>+</button>
+          <button type="button" onClick={()=>onChange(clamp((value||0)-step))}>−</button>
         </div>
       </div>
-      <div className="traffic-table">
-        <div className="tr th"><span>SOURCE</span><span>MODEL</span><span>ALLOCATION</span><span>NOTES</span><span>ACTIVE</span></div>
-        {channels.map((c,i)=>(
-          <div key={c.name} className="tr">
-            <span><i style={{background:c.color}}/><span>{c.name}<small>{c.note}</small></span></span>
-            <span>{c.model}</span>
-            <span>{Math.round((mix[i]/total)*100)}%</span>
-            <span style={{fontSize:9,color:'#888'}}>{c.note}</span>
-            <button className={`switch ${mix[i]>0?'on':''}`} onClick={()=>{const n=[...mix];n[i]=mix[i]>0?0:c.base;setMix(n);notify(`${c.name} ${mix[i]>0?'disabled':'enabled'}.`);}}><i/></button>
+    </label>
+  );
+}
+
+function AssumptionsPanel({assumptions:a,setAssumptions,onReset}:any){
+  const set=(k:string,v:any)=>setAssumptions((prev:CampaignAssumptions)=>({...prev,[k]:v}));
+  return(
+    <section className="assump-panel">
+      <div className="panel-head"><h3>CAMPAIGN ASSUMPTIONS</h3><button className="ghost-btn" onClick={onReset}><RotateCw style={{width:11}}/>Reset assumptions</button></div>
+      <div className="assump-grid">
+        <NumField label="Total test budget" prefix="$" value={a.totalBudget} step={50} min={0} onChange={(v:number)=>set('totalBudget',v)}/>
+        <NumField label="Subscription price" prefix="$" value={a.subscriptionPrice} step={1} min={0} onChange={(v:number)=>set('subscriptionPrice',v)}/>
+        <NumField label="Subscriber target" value={a.targetSubscribers} step={10} min={0} onChange={(v:number)=>set('targetSubscribers',v)}/>
+        <NumField label="Campaign duration" suffix="days" value={a.durationDays} step={1} min={1} onChange={(v:number)=>set('durationDays',v)}/>
+        <NumField label="Refund / cancel rate" suffix="%" value={a.refundRatePct} step={1} min={0} max={100} onChange={(v:number)=>set('refundRatePct',v)}/>
+        <NumField label="Forecast confidence" suffix="%" value={a.confidencePct} step={5} min={0} max={100} onChange={(v:number)=>set('confidencePct',v)}/>
+        <label className="numfield"><span>Audience</span><select value={a.audience} onChange={e=>set('audience',e.target.value)}>{['All adult audiences','Men','Women','Custom segment'].map(o=><option key={o}>{o}</option>)}</select></label>
+        <label className="numfield"><span>Country</span><select value={a.country} onChange={e=>set('country',e.target.value)}>{['United States','United Kingdom','Canada','Australia','Global'].map(o=><option key={o}>{o}</option>)}</select></label>
+        <NumField label="Minimum age" value={a.minAge} step={1} min={18} max={99} onChange={(v:number)=>set('minAge',Math.max(18,v))}/>
+        <label className="numfield"><span>Objective</span><select value={a.objective} onChange={e=>set('objective',e.target.value)}>{['Subscriber growth','Trial signups','Content sales','Retargeting'].map(o=><option key={o}>{o}</option>)}</select></label>
+      </div>
+      {a.minAge<18&&<div className="assump-warn">Minimum age must be 18 or higher.</div>}
+    </section>
+  );
+}
+
+function TrafficTable({sources,setSources,forecast,notify}:any){
+  const setRow=(id:string,patch:any)=>setSources((prev:TrafficSourceAssumption[])=>prev.map(s=>s.id===id?{...s,...patch}:s));
+  const valid=forecast.allocationValid;
+  const diff=+(forecast.allocationTotalPct-100).toFixed(1);
+  const fmap:Record<string,any>=Object.fromEntries(forecast.perSource.map((f:any)=>[f.id,f]));
+  return(
+    <section className="traffic-table-wrap">
+      <div className="panel-head"><h3>TRAFFIC SOURCES</h3>
+        <button className="ghost-btn" disabled={valid} onClick={()=>{setSources(normalizeAllocations(sources));notify('Allocations normalized to 100%.');}}><SlidersHorizontal style={{width:11}}/>Normalize to 100%</button>
+      </div>
+      <div className="tsrc-table">
+        <div className="tsrc-row tsrc-head"><span>On</span><span>Source</span><span>Alloc %</span><span>CPC $</span><span>Click→LP %</span><span>LP→Paid %</span><span>± %</span><span>Net conv.</span></div>
+        {sources.map((s:TrafficSourceAssumption)=>{
+          const f=fmap[s.id];
+          return(
+          <div key={s.id} className={`tsrc-row${s.enabled?'':' off'}`}>
+            <button className={`switch ${s.enabled?'on':''}`} onClick={()=>setRow(s.id,{enabled:!s.enabled})}><i/></button>
+            <span className="tsrc-name">{s.name}{s.notes&&<small>{s.notes}</small>}</span>
+            <input type="number" value={s.allocationPct} step={1} min={0} max={100} onChange={e=>setRow(s.id,{allocationPct:e.target.value===''?0:parseFloat(e.target.value)})}/>
+            <input type="number" value={s.cpc} step={0.01} min={0} onChange={e=>setRow(s.id,{cpc:e.target.value===''?0:parseFloat(e.target.value)})}/>
+            <input type="number" value={s.clickToLandingPct} step={1} min={0} max={100} onChange={e=>setRow(s.id,{clickToLandingPct:e.target.value===''?0:parseFloat(e.target.value)})}/>
+            <input type="number" value={s.landingToPaidPct} step={0.1} min={0} max={100} onChange={e=>setRow(s.id,{landingToPaidPct:e.target.value===''?0:parseFloat(e.target.value)})}/>
+            <input type="number" value={s.uncertaintyPct} step={1} min={0} max={100} onChange={e=>setRow(s.id,{uncertaintyPct:e.target.value===''?0:parseFloat(e.target.value)})}/>
+            <b className="tsrc-net">{s.enabled&&f?Math.round(f.netConversions):'—'}</b>
           </div>
+        );})}
+      </div>
+      <div className={`alloc-total${valid?' ok':' bad'}`}>
+        <span>Enabled allocation total</span>
+        <b>{forecast.allocationTotalPct.toFixed(1)}%</b>
+        {!valid&&<em>{diff>0?`${diff}% over`:`${Math.abs(diff)}% under`} — normalize to 100% to generate a final forecast.</em>}
+      </div>
+    </section>
+  );
+}
+
+function ForecastCard({forecast,assumptions}:any){
+  const[open,setOpen]=useState(false);
+  const f=forecast;
+  const ranked=[...f.perSource].sort((a:any,b:any)=>b.netConversions-a.netConversions);
+  if(f.totalNetConversions<=0)return(
+    <section className="forecast-empty">Complete the campaign assumptions to generate a forecast.</section>
+  );
+  const money=(n:number)=>`$${Math.round(n).toLocaleString()}`;
+  return(
+    <section className="forecast-out">
+      <div className="forecast-primary">
+        <div className="fc-mid">
+          <span>MODELED MIDPOINT</span>
+          <strong>{f.midpoint}</strong>
+          <p>net paid subscribers</p>
+          <p className="fc-range">Planning range <b>{f.low}–{f.high}</b></p>
+          {!f.allocationValid&&<p className="fc-warn">Allocations are not at 100% — this is a partial estimate.</p>}
+        </div>
+        <div className="fc-metrics">
+          {[['Est. clicks',Math.round(f.totalClicks).toLocaleString()],['Landing visits',Math.round(f.totalLandingVisits).toLocaleString()],
+            ['Net paid conv.',f.midpoint.toLocaleString()],['Modeled revenue',money(f.totalRevenue)],
+            ['Visit → paid',`${f.visitToPaidPct.toFixed(2)}%`],['ROAS',`${f.roas.toFixed(2)}x`],
+            ['CAC',f.cac>0?money(f.cac):'—'],['Break-even',`${Math.ceil(f.breakEvenConversions)} subs`]].map(([l,v])=>(
+            <div key={l as string} className="fc-metric"><span>{l}</span><b>{v}</b></div>
+          ))}
+        </div>
+      </div>
+      <p className="fc-note">Range is an estimate based on the uncertainty you entered per source. Forecasts are directional, not guaranteed results.</p>
+      <button className="ghost-btn" onClick={()=>setOpen(o=>!o)}>{open?'Hide':'Show'} per-source detail</button>
+      {open&&<div className="fc-detail">
+        <div className="fc-detail-row fc-detail-head"><span>Source</span><span>Spend</span><span>Clicks</span><span>Visits</span><span>Net conv.</span><span>Revenue</span></div>
+        {ranked.map((s:any)=>(
+          <div key={s.id} className="fc-detail-row"><span>{s.name}</span><span>{money(s.spend)}</span><span>{Math.round(s.clicks).toLocaleString()}</span><span>{Math.round(s.landingVisits).toLocaleString()}</span><span>{Math.round(s.netConversions)}</span><span>{money(s.revenue)}</span></div>
         ))}
-      </div>
-      <div className="mixer" style={{marginTop:16}}>
-        {channels.map((c,i)=><label key={c.name}>{c.name}<input type="range" min={0} max={50} value={mix[i]} onChange={e=>{const n=[...mix];n[i]=+e.target.value;setMix(n);}}/><b>{Math.round((mix[i]/total)*100)}%</b></label>)}
-      </div>
+      </div>}
+    </section>
+  );
+}
+
+function ScenarioBar({scenarios,setScenarios,assumptions,setAssumptions,sources,setSources,notify}:any){
+  const[activeId,setActiveId]=useState<string|null>(null);
+  const active=scenarios.find((s:any)=>s.id===activeId);
+  const newScenario=()=>{setActiveId(null);};
+  const saveScenario=()=>{
+    const name=active?.name||`Scenario ${scenarios.length+1}`;
+    if(active){setScenarios((prev:any[])=>prev.map(s=>s.id===active.id?{...s,assumptions,sources}:s));notify('Scenario saved.');}
+    else{const id=crypto.randomUUID();setScenarios((prev:any[])=>[...prev,{id,name,assumptions,sources}]);setActiveId(id);notify('Scenario saved.');}
+  };
+  const duplicate=()=>{const id=crypto.randomUUID();setScenarios((prev:any[])=>[...prev,{id,name:`${active?.name||'Scenario'} copy`,assumptions,sources}]);setActiveId(id);notify('Scenario duplicated.');};
+  const rename=()=>{if(!active)return;const name=prompt('Rename scenario',active.name);if(name){setScenarios((prev:any[])=>prev.map(s=>s.id===active.id?{...s,name}:s));}};
+  const del=()=>{if(!active)return;setScenarios((prev:any[])=>prev.filter(s=>s.id!==active.id));setActiveId(null);notify('Scenario deleted.');};
+  const load=(id:string)=>{const sc=scenarios.find((s:any)=>s.id===id);if(sc){setActiveId(id);setAssumptions(sc.assumptions);setSources(sc.sources);notify(`Loaded "${sc.name}".`);}};
+  return(
+    <div className="scenario-bar">
+      <select value={activeId||''} onChange={e=>e.target.value?load(e.target.value):newScenario()}>
+        <option value="">New scenario</option>
+        {scenarios.map((s:any)=><option key={s.id} value={s.id}>{s.name}</option>)}
+      </select>
+      <button onClick={saveScenario}>Save</button>
+      <button onClick={duplicate} disabled={!active}>Duplicate</button>
+      <button onClick={rename} disabled={!active}>Rename</button>
+      <button onClick={del} disabled={!active}>Delete</button>
     </div>
   );
 }
 
-function ForecastPage({m,budget,price}:any){
-  const bars=[.4,.55,.7,.82,.9,.95,1,.97,.93,.88,.85,.82];
+function TrafficPage({sources,setSources,forecast,notify}:any){
   return(
     <div className="workspace">
-      <div className="workspace-head"><div><span>FORECAST</span><h1>Revenue projection</h1><p>Directional estimates based on your current campaign inputs.</p></div></div>
-      <div className="forecast-screen">
-        <div className="forecast-big">
-          <span>MODELED MIDPOINT</span>
-          <strong>{m.mid}</strong>
-          <p>paid subscribers at ${price}/mo</p>
-          <p style={{marginTop:8}}>Likely range: <b style={{color:'#ef2931'}}>{m.low}–{m.high}</b></p>
-        </div>
-        <div className="chart">
-          <span style={{fontSize:9,fontFamily:'DM Mono',color:'#888',letterSpacing:'.08em'}}>PROJECTED SUBSCRIBER GROWTH</span>
-          <div className="chart-bars">{bars.map((h,i)=><i key={i} style={{height:`${h*100}%`}}/>)}</div>
-          <div className="chart-labels">{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map(m=><span key={m}>{m}</span>)}</div>
-        </div>
+      <div className="workspace-head"><div><span>TRAFFIC MIX</span><h1>Channel allocation</h1><p>Editable source assumptions. Enter values directly — every change updates the forecast.</p></div></div>
+      <TrafficTable sources={sources} setSources={setSources} forecast={forecast} notify={notify}/>
+    </div>
+  );
+}
+
+function ForecastPage({assumptions,setAssumptions,sources,setSources,forecast,scenarios,setScenarios,notify}:any){
+  return(
+    <div className="workspace">
+      <div className="workspace-head"><div><span>FORECAST</span><h1>Campaign forecast</h1><p>Calculated live from your assumptions and per-source rates. Directional estimates, not guarantees.</p></div>
+        <ScenarioBar scenarios={scenarios} setScenarios={setScenarios} assumptions={assumptions} setAssumptions={setAssumptions} sources={sources} setSources={setSources} notify={notify}/>
       </div>
-      <div className="forecast-kpis">
-        {[['Test spend',`$${budget.toLocaleString()}`],['Est. clicks',m.clicks.toLocaleString()],['Landing visits',m.visits.toLocaleString()],['Conversions',m.mid],['Modeled revenue',`$${m.rev.toLocaleString(undefined,{maximumFractionDigits:0})}`],['ROAS',`${m.roas.toFixed(2)}x`],['Visit→paid',`${(m.roas*2).toFixed(2)}%`],['CPA',`$${(budget/Math.max(m.mid,1)).toFixed(2)}`]].map(([label,val])=>(
-          <div key={label} style={{padding:'16px 18px',borderRight:'1px solid #391315',display:'grid',gap:5}}>
-            <span style={{fontSize:8,fontFamily:'DM Mono',color:'#888',letterSpacing:'.08em'}}>{label}</span>
-            <b style={{fontSize:14,fontFamily:'Manrope,sans-serif',fontWeight:700}}>{val}</b>
-          </div>
-        ))}
-      </div>
+      <AssumptionsPanel assumptions={assumptions} setAssumptions={setAssumptions} onReset={()=>{setAssumptions(DEFAULT_ASSUMPTIONS);notify('Assumptions reset to defaults.');}}/>
+      <TrafficTable sources={sources} setSources={setSources} forecast={forecast} notify={notify}/>
+      <ForecastCard forecast={forecast} assumptions={assumptions}/>
     </div>
   );
 }
