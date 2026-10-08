@@ -127,3 +127,19 @@ test("production serves all creator routes, protects sessions, disables samples 
   );
   assert.equal((await fetch(base + "/healthz")).status, 200);
 });
+
+test('built preview accepts host and port flags and serves working persistent APIs', async(t)=>{
+  const directory=mkdtempSync(join(tmpdir(),'np-preview-'));
+  const previous={NODE_ENV:process.env.NODE_ENV,NP_DB_PATH:process.env.NP_DB_PATH};
+  process.env.NODE_ENV='development';process.env.NP_DB_PATH=join(directory,'preview.sqlite');
+  let running;
+  t.after(async()=>{if(running)await running.close();for(const name of Object.keys(previous))previous[name]===undefined?delete process.env[name]:process.env[name]=previous[name];rmSync(directory,{recursive:true,force:true});});
+  const start=async()=>{running=await createLocalServer({args:['--built','--host','127.0.0.1','--port','0','--strictPort']});if(!running.server.listening)await once(running.server,'listening');return `http://127.0.0.1:${running.server.address().port}`;};
+  let base=await start();
+  const page=await(await fetch(base+'/content-library')).text();assert.match(page,/<div id="root"><\/div>/);assert.doesNotMatch(page,/@vite\/client/);
+  const response=await fetch(base+'/api/cockpit/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'clickable-preview@example.com',password:'preview-test-password',adult:true,terms:true})});
+  assert.equal(response.status,201);const cookie=response.headers.get('set-cookie').split(';')[0];
+  assert.equal((await fetch(base+'/api/cockpit/workspace/content',{method:'POST',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({title:'Real clickable preview item',url:'https://example.com/content',source:'Reddit'})})).status,201);
+  await running.close();running=null;base=await start();
+  const saved=await(await fetch(base+'/api/cockpit/workspace/content',{headers:{Cookie:cookie}})).json();assert.equal(saved.items[0].title,'Real clickable preview item');
+});

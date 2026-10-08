@@ -13,11 +13,20 @@ function loadEnvLocal() {
     if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
   }
 }
-export async function createLocalServer() {
+export async function createLocalServer({ args = process.argv.slice(2) } = {}) {
   loadEnvLocal();
-  const port = Number(process.env.PORT || 4178);
+  const option = (name) => {
+    const inline = args.find(v => v.startsWith(name + "="));
+    if(inline) return inline.slice(name.length + 1);
+    const index = args.indexOf(name);
+    return index >= 0 ? args[index + 1] : undefined;
+  };
+  const port = Number(option("--port") ?? process.env.PORT ?? 4178);
+  if(!Number.isInteger(port) || port < 0 || port > 65535) throw new Error("Invalid server port.");
+  const host = option("--host") || process.env.HOST || "127.0.0.1";
   const production = process.env.NODE_ENV === "production";
   const baseUrl =
+    option("--public-url") ||
     process.env.NP_BASE_URL ||
     process.env.RENDER_EXTERNAL_URL ||
     `http://127.0.0.1:${port}`;
@@ -52,7 +61,8 @@ export async function createLocalServer() {
     res.status(404).json({ error: "API route not found." }),
   );
   let vite;
-  if (production) {
+  if (production || args.includes("--built")) {
+    if(!fs.existsSync(path.join(root,"dist","index.html"))) throw new Error("Run npm run build before opening the built app.");
     app.use(express.static(path.join(root, "dist")));
     app.get(
       [
@@ -77,12 +87,12 @@ export async function createLocalServer() {
     const { createServer: createViteServer } = await import("vite");
     vite = await createViteServer({
       root,
-      server: { middlewareMode: true, hmr: { port: port + 20000 } },
+      server: { middlewareMode: true, allowedHosts: ["terminal.local"], hmr: { port: port + 20000 } },
       appType: "spa",
     });
     app.use(vite.middlewares);
   }
-  const server = app.listen(port, process.env.HOST || "127.0.0.1", () =>
+  const server = app.listen(port, host, () =>
     console.log(`Naughty Pilot cockpit listening on ${port}`),
   );
   const syncTimer = setInterval(
