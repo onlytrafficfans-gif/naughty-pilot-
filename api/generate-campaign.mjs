@@ -1,18 +1,25 @@
-// Campaign ad-copy generation via local Ollama — no cloud API, no API key.
-// Note: no vision model is installed locally, so this does NOT analyze image content.
-// Image ranking stays on the deterministic client-side heuristic (see rankImages in main.tsx),
-// which is honestly labeled as such in the UI — never presented as AI vision analysis.
-import { ollamaChatJSON, isOllamaReachable } from './_ollama.mjs';
+// Campaign text generation through the server-side OpenAI Responses API.
+import { openaiJSON } from './_openai.mjs';
 
 const SYSTEM = `You are a media buyer writing ad copy for adult-creator subscription campaigns. Output must be brand-safe (no explicit language), policy-safe (no platform names), and match the requested angle exactly. Respond with ONLY a JSON object, no markdown, no commentary, matching this exact shape:
 {"objective":"one line","audienceNotes":"one sentence","adCopy":[{"variant":"short name","hook":"under 90 chars, no platform names","cta":"under 40 chars"}, ... 4 to 6 items]}`;
 
+const CAMPAIGN_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['objective', 'audienceNotes', 'adCopy'],
+  properties: {
+    objective: { type: 'string' },
+    audienceNotes: { type: 'string' },
+    adCopy: { type: 'array', minItems: 4, maxItems: 6, items: {
+      type: 'object', additionalProperties: false,
+      required: ['variant', 'hook', 'cta'],
+      properties: { variant: { type: 'string' }, hook: { type: 'string' }, cta: { type: 'string' } },
+    } },
+  },
+};
+
 export async function generateCampaign(body) {
   const { angle, region, budget, price, brand, positioning, siteHooks = [] } = body || {};
-
-  if (!(await isOllamaReachable())) {
-    throw new Error('Ollama is not reachable at 127.0.0.1:11434 — start it with "ollama serve".');
-  }
 
   const prompt = `Campaign inputs:
 - Creative angle: ${angle || 'Confident & playful'}
@@ -23,8 +30,8 @@ ${siteHooks.length ? `- Copy hooks found on the brand's own site: ${siteHooks.jo
 
 Write the campaign objective, one audience note, and 4-6 ad copy variants for this angle and audience.`;
 
-  const object = await ollamaChatJSON({ system: SYSTEM, prompt });
-  if (!Array.isArray(object.adCopy) || !object.adCopy.length) throw new Error('Local model returned an incomplete campaign.');
+  const object = await openaiJSON({ system: SYSTEM, prompt, schema: CAMPAIGN_SCHEMA });
+  if (!Array.isArray(object.adCopy) || !object.adCopy.length) throw new Error('OpenAI returned an incomplete campaign.');
   return object;
 }
 

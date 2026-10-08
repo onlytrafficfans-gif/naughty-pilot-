@@ -6,3 +6,7 @@ dist/
 package-lock.json
 .vercel
 .env*
+
+.data/
+playwright-report/
+test-results/

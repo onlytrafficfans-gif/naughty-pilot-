@@ -1,0 +1,25 @@
+# One Node instance and a durable disk. The paid plan is required for disk storage.
+services:
+  - type: web
+    name: naughty-pilot
+    runtime: node
+    plan: starter
+    numInstances: 1
+    buildCommand: npm install --package-lock=false --no-audit --no-fund && npm run build && npm prune --omit=dev
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 24
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: NP_DB_PATH
+        value: /var/data/cockpit.sqlite
+      - key: NP_TRUST_PROXY_HOPS
+        value: 1
+    disk:
+      name: creator-data
+      mountPath: /var/data
+      sizeGB: 1

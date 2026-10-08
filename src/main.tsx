@@ -1,952 +1,3844 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Upload, Sparkles, LayoutDashboard, WandSparkles, ChartNoAxesCombined, Route, Rocket, SlidersHorizontal, Check, CircleDollarSign, MousePointer2, Eye, Users, TrendingUp, Info, ArrowUpRight, Image as ImageIcon, RotateCw, ShieldCheck, Bell, Settings, Zap, MessageCircle, Plus, Bot, Library, CreditCard, LockKeyhole, X, Send, Layers3 } from 'lucide-react';
-import './styles.css';
-import { computeForecast, normalizeAllocations, DEFAULT_ASSUMPTIONS, DEFAULT_SOURCES, type CampaignAssumptions, type TrafficSourceAssumption } from './lib/forecastEngine';
-
-const SCENARIO_KEY='np.scenarios.v1';
-function loadScenarios():any[]{try{return JSON.parse(localStorage.getItem(SCENARIO_KEY)||'[]');}catch{return[];}}
-function saveScenarios(list:any[]){try{localStorage.setItem(SCENARIO_KEY,JSON.stringify(list));}catch{/* storage unavailable */}}
-
-const channels = [
-  { name:'TrafficJunky', model:'CPM', color:'#ff554f', base:24, note:'Tube inventory · keyword + geo' },
-  { name:'ExoClick', model:'CPC / sCPM', color:'#ff806b', base:20, note:'Native + display · source rules' },
-  { name:'JuicyAds', model:'CPC / CPM', color:'#ffad72', base:14, note:'Native + banner · device targeting' },
-  { name:'Reddit', model:'Organic', color:'#e5c277', base:12, note:'Community-led discovery' },
-  { name:'X / Social', model:'Organic', color:'#c3d661', base:11, note:'Preview-safe social funnel' },
-  { name:'Creator swaps', model:'Flat fee', color:'#9fcf54', base:11, note:'Audience-aligned shoutouts' },
-  { name:'SEO / Clips', model:'Owned', color:'#76bf52', base:8, note:'Compounding discovery' },
-];
-
-const nav = [
-  [LayoutDashboard,'Overview'],[MessageCircle,'Chat Studio'],[ImageIcon,'Model Assets'],[WandSparkles,'Campaign Builder'],[ImageIcon,'Creatives'],[ChartNoAxesCombined,'Traffic Mix'],[Route,'Forecast'],[Rocket,'Launch Plan'],[Sparkles,'AI Skills'],[Zap,'Naughty Cheat Codes']
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Home,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Activity,
+  Megaphone,
+  Users,
+  Link as LinkIcon,
+  BarChart3,
+  UserRound,
+  ChevronDown,
+  Plus,
+  Check,
+  X,
+  Copy,
+  QrCode,
+  ArrowRight,
+  ArrowLeft,
+  ExternalLink,
+  Bell,
+  Search,
+  SlidersHorizontal,
+  CheckCircle2,
+  AlertCircle,
+  Globe,
+  LogOut,
+  ShieldCheck,
+  Radio,
+  MousePointer2,
+  TrendingUp,
+  Zap,
+  Download,
+  MoreHorizontal,
+  RefreshCw,
+  Menu,
+  LockKeyhole,
+  Compass,
+  Send,
+  Calendar,
+  CircleHelp,
+  Plane,
+  Loader2,
+} from "lucide-react";
+import QRCode from "qrcode";
+import "./styles.css";
+import Dashboard, { campaignPresets } from "./Dashboard";
+import WorkspaceScreen from "./WorkspaceScreen";
+import { Settings } from "lucide-react";
+const NAV = [
+  ["Home", Home, "home"],
+  ["Traffic", Activity, "traffic"],
+  ["Campaigns", Megaphone, "campaigns"],
+  ["Peer Swap", Users, "peer-swap"],
+  ["Links", LinkIcon, "links"],
+  ["Analytics", BarChart3, "analytics"],
+  ["Account", UserRound, "account"],
+  ["Automation", RefreshCw, "automation"],
+  ["Templates", Copy, "templates"],
+  ["Content Library", Megaphone, "content-library"],
+  ["Subscriptions", Users, "subscriptions"],
+  ["Settings", Settings, "settings"],
 ] as const;
-
-const cheatCodes=[
-  ['Viral Hook Formula','Turn any photo into a scroll-stopping first line','VIRAL HOOK FORMULA — Structure: [Pattern break] + [Curiosity gap] + [Implied payoff]. 1) Open with a statement that contradicts expectation ("I almost deleted this one."). 2) Leave one specific detail unsaid — curiosity drives the click, not description. 3) Never explain the photo; tease the story behind it. Test 3 hooks per creative, keep the one with top CTR after 48h. Want me to write 3 hooks for your current campaign angle?'],
-  ['Price Anchor Stack','Frame your subscription so $X feels like a steal','PRICE ANCHOR STACK — Never present your price alone. Stack: 1) Name the full value first ("weekly exclusive sets + DM priority + custom requests"). 2) Anchor high: reference what customs cost à la carte ($50+). 3) Then reveal the sub price — it now reads as a discount, not a cost. 4) Add a decoy tier priced close to the top tier to push mid-tier picks. Your current price point works best framed against a $45+ anchor. Want a tier structure for your price?'],
-  ['Scarcity Trigger','Limited-time language that converts without lying','SCARCITY TRIGGER — Only use real limits (fake countdowns burn trust and re-bills). Levers: 1) Capacity: "First 50 subs get X" — count real. 2) Time-boxed bonus, not discount: price stays, bonus expires. 3) Content retirement: "This set leaves the wall Friday." Announce the deadline twice — once early, once 3h before. Never extend a stated deadline. Want a launch-week scarcity plan?'],
-  ['DM Opener Sequence','3-message sequence from cold follow to paid sub','DM OPENER SEQUENCE — Msg 1 (on follow, <5 min): thank + one specific personal touch, no pitch. Msg 2 (24h): a piece of free value — a preview or behind-the-scenes, still no pitch. Msg 3 (48h): the ask, framed as an invitation with a reason ("I only push my best stuff to subs — join and today\'s set is yours"). Cold→paid runs 3-6% on this flow when Msg 1 lands fast. Want me to draft the 3 messages in your brand voice?'],
-  ['Re-sub Winback','Recover churned subs with one well-timed message','RE-SUB WINBACK — Timing beats copy: send on day 3-5 after expiry (card declines resolve, attention resets). Structure: 1) No guilt, no "we miss you". 2) Lead with what they missed — one concrete highlight. 3) One-tap re-sub link + a small returning-sub bonus. Expected recovery: 8-15% of churned subs monthly. Automate the trigger off expiry date, not billing failure. Want the message template?'],
-  ['Free Trial Funnel','Trial-to-paid conversion blueprint','FREE TRIAL FUNNEL — Trials convert when the first 24h is engineered: 1) Instant welcome DM with your single best set pinned. 2) Day 2: interactive touch (poll, question) to build habit. 3) Day 5: preview of sub-only content they can\'t open yet. 4) Expiry day: convert with a first-month offer, not a plea. Keep trials at 7 days — 30-day trials kill urgency. Target: 20-30% trial→paid. Want the day-by-day message plan?'],
-  ['Bundle Upsell Script','Turn one purchase into three','BUNDLE UPSELL SCRIPT — The moment after a purchase is your highest-intent window. Within 10 min send: "Since you grabbed [X], the [X+Y+Z] bundle is yours for [single-item price +60%] — only offered right after a purchase." Rules: bundle must be thematically linked, discount framed as access not markdown, one follow-up max. Attach rate target: 25-35%. Want a bundle matrix built from your content categories?'],
-  ['Content Calendar OS','30-day posting cadence for max algorithmic reach','CONTENT CALENDAR OS — Weekly spine: 3 feed posts (Mon/Wed/Fri peak hours per platform), daily stories/casual, 1 collab or swap, 1 wall-exclusive drop announced 24h ahead. Batch-shoot monthly: one 3-hour shoot = 12+ feed assets. Track per-post CTR to your page link weekly; double down on the top format, cut the bottom. The calendar compounds — reach builds week 3+, not day 3. Want a 30-day calendar for your niche?'],
-] as const;
-
-const skillCatalog=[
-  [Sparkles,'Conversion Copy','Write captions, bios, and CTAs that convert'],
-  [ImageIcon,'Creative Analysis','Score and rank your photos by predicted CTR'],
-  [Users,'Audience Intel','Map demographics, interests, and lookalikes'],
-  [ChartNoAxesCombined,'Forecast Modeling','Project subs and revenue from spend inputs'],
-  [Route,'Traffic Routing','Allocate budget across channels by ROI'],
-  [WandSparkles,'Ad Variation Engine','Generate 9 ad variants from one creative'],
-  [MessageCircle,'DM Sequences','Automate warm-up to conversion messages'],
-  [Rocket,'Launch Sequencer','Step-by-step campaign go-live checklist'],
-  [Library,'Content Library','Organize, tag, and repurpose your media'],
-  [Bot,'Compliance Auditor','Flag policy violations before you spend'],
-  [Zap,'Retargeting Playbook','Re-engage visitors who didn\'t convert'],
-  [Settings,'A/B Test Planner','Design split tests with statistical confidence'],
-];
-
-export function App(){
-  const[page,setPage]=useState('Overview');
-  const[assumptions,setAssumptions]=useState<CampaignAssumptions>(DEFAULT_ASSUMPTIONS);
-  const[sources,setSources]=useState<TrafficSourceAssumption[]>(DEFAULT_SOURCES);
-  const[scenarios,setScenarios]=useState<any[]>(()=>loadScenarios());
-  // budget/price/goal remain single-sourced from assumptions so every surface stays in sync.
-  const budget=assumptions.totalBudget, price=assumptions.subscriptionPrice, goal=assumptions.targetSubscribers;
-  const setBudget=(v:number)=>setAssumptions(a=>({...a,totalBudget:v}));
-  const setPrice=(v:number)=>setAssumptions(a=>({...a,subscriptionPrice:v}));
-  const setGoal=(v:number)=>setAssumptions(a=>({...a,targetSubscribers:v}));
-  const[images,setImages]=useState<string[]>([]);
-  const[assets,setAssets]=useState<any[]>([]);
-  const[aiCampaign,setAiCampaign]=useState<any>(null);
-  const image=images[0]||null;
-  const[building,setBuilding]=useState(false);
-  const[demoStep,setDemoStep]=useState(0);
-  const[generated,setGenerated]=useState(false);
-  const[mixOpen,setMixOpen]=useState(false);
-  const[mix,setMix]=useState(channels.map(c=>c.base));
-  const[toast,setToast]=useState<string|null>(null);
-  const[drawerOpen,setDrawerOpen]=useState<string|null>(null);
-  const[chatMsg,setChatMsg]=useState('');
-  const[chatLog,setChatLog]=useState<{role:string,text:string}[]>([{role:'ai',text:'Hey — drop a question about your campaign, traffic mix, or creative strategy. I\'ll give you a direct answer.'}]);
-  const[creatorName,setCreatorName]=useState('');
-  const[niche,setNiche]=useState('');
-  const[angle,setAngle]=useState('Confident & playful');
-  const[region,setRegion]=useState('United States · 21+');
-  const[billingOpen,setBillingOpen]=useState(false);
-  const[settingsOpen,setSettingsOpen]=useState(false);
-  const[websiteUrl,setWebsiteUrl]=useState('');
-  const[websiteLoading,setWebsiteLoading]=useState(false);
-  const[websiteResult,setWebsiteResult]=useState<any>(null);
-  const[websiteError,setWebsiteError]=useState<string|null>(null);
-  const fileRef=useRef<HTMLInputElement>(null);
-  const chatRef=useRef<HTMLDivElement>(null);
-
-  const forecast=useMemo(()=>computeForecast(assumptions,sources),[assumptions,sources]);
-  // Compatibility shape for surfaces that read the older `m` object (Overview, Chat, Launch).
-  const m=useMemo(()=>({
-    clicks:Math.round(forecast.totalClicks),visits:Math.round(forecast.totalLandingVisits),
-    mid:forecast.midpoint,low:forecast.low,high:forecast.high,rev:forecast.totalRevenue,roas:forecast.roas,
-  }),[forecast]);
-
-  useEffect(()=>{saveScenarios(scenarios);},[scenarios]);
-  const totalMix=mix.reduce((a,b)=>a+b,0);
-
-  function notify(msg:string){setToast(msg);setTimeout(()=>setToast(null),3200);}
-
-  function loadCheatCode(name:string,body:string){
-    setChatLog(l=>[...l,{role:'ai',text:body}]);
-    setPage('Chat Studio');
-    notify(`${name} loaded into Chat Studio.`);
-    setTimeout(()=>chatRef.current?.scrollTo({top:99999,behavior:'smooth'}),100);
-  }
-
-  function runBuild(doneMsg?:string){
-    setBuilding(true);setGenerated(false);setDemoStep(1);
-    let s=1;
-    const iv=setInterval(()=>{s++;setDemoStep(s);if(s>=6){clearInterval(iv);setBuilding(false);setGenerated(true);if(doneMsg)notify(doneMsg);}},900);
-  }
-
-  async function requestAiCampaign(payloads:{url?:string,base64?:string}[]){
-    setAiCampaign(null);
-    try{
-      const r=await fetch('/api/generate-campaign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        images:payloads.slice(0,6),angle,region,budget,price,
-        brand:websiteResult?.profile?.brand,positioning:websiteResult?.profile?.positioning,
-        siteHooks:websiteResult?.adSuggestions?.slice(0,3),
-      })});
-      if(!r.ok)throw new Error();
-      setAiCampaign(await r.json());
-    }catch{/* heuristic fallbacks stay in place */}
-  }
-
-  function fileToResizedDataUrl(file:File):Promise<string>{
-    return new Promise((resolve,reject)=>{
-      const img=new Image();
-      const objectUrl=URL.createObjectURL(file);
-      img.onload=()=>{
-        const max=640,scale=Math.min(1,max/Math.max(img.width,img.height));
-        const canvas=document.createElement('canvas');
-        canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);
-        canvas.getContext('2d')!.drawImage(img,0,0,canvas.width,canvas.height);
-        resolve(canvas.toDataURL('image/jpeg',.75));
-      };
-      img.onerror=reject;
-      img.src=objectUrl;
+const num = (n: any) => Number(n || 0).toLocaleString();
+const money = (n: any) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(n || 0);
+const pct = (n: any) => `${Number(n || 0).toFixed(1)}%`;
+const today = () => new Date().toISOString().slice(0, 10);
+const initials = (name: string) =>
+  name
+    ?.split(" ")
+    .map((v) => v[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "NP";
+async function api(path: string, method = "GET", body?: any) {
+  const r = await fetch("/api/cockpit" + path, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await r.json();
+  if (!r.ok)
+    throw Object.assign(new Error(data.error || "Something went wrong."), {
+      status: r.status,
     });
-  }
-
-  async function upload(files?:FileList|null){
-    if(!files||!files.length)return;
-    const list=[...files].filter(f=>f.type.startsWith('image/'));
-    if(!list.length)return;
-    const urls=list.map(f=>URL.createObjectURL(f));
-    setImages(prev=>[...prev,...urls]);
-    runBuild(`Campaign built from ${urls.length>1?`${urls.length} creatives`:'your creative'} — every layer is editable.`);
-    const payloads=await Promise.all(list.map(f=>fileToResizedDataUrl(f).catch(()=>null)));
-    const records=list.map((f,i)=>({
-      id:crypto.randomUUID(),name:f.name,url:urls[i],mime:f.type,base64:payloads[i],
-      width:0,height:0,createdAt:Date.now(),source:'Upload',status:'Ready',
-    }));
-    setAssets(prev=>[...records,...prev]);
-    records.forEach(rec=>{
-      const im=new Image();
-      im.onload=()=>setAssets(prev=>prev.map(x=>x.id===rec.id?{...x,width:im.naturalWidth,height:im.naturalHeight}:x));
-      im.src=rec.url;
-    });
-    const valid=payloads.filter(Boolean).map(b=>({base64:b as string}));
-    if(valid.length)requestAiCampaign(valid);
-  }
-
-  const PLACEMENT_SIZES:[string,number,number][]=[
-    ['Square 1080×1080',1080,1080],['Story 1080×1920',1080,1920],['Landscape 1200×628',1200,628],['Banner 728×90',728,90],
-  ];
-
-  function resizeToCanvas(src:string,w:number,h:number):Promise<string>{
-    return new Promise((resolve,reject)=>{
-      const img=new Image();
-      img.crossOrigin='anonymous';
-      img.onload=()=>{
-        const canvas=document.createElement('canvas');
-        canvas.width=w;canvas.height=h;
-        const ctx=canvas.getContext('2d')!;
-        const scale=Math.max(w/img.width,h/img.height);
-        const dw=img.width*scale,dh=img.height*scale;
-        ctx.drawImage(img,(w-dw)/2,(h-dh)/2,dw,dh);
-        resolve(canvas.toDataURL('image/jpeg',.85));
-      };
-      img.onerror=reject;
-      img.src=src;
-    });
-  }
-
-  async function submitBrief(brief:string,action:string){
-    const id=crypto.randomUUID();
-    const reference=assets.find((x:any)=>x.mime?.startsWith('image/')&&x.url);
-
-    if(action==='Resize it for placements'){
-      if(!reference){notify('Upload an image first — resizing needs a source asset.');return;}
-      setAssets(prev=>[{id,name:brief,brief,action,mime:'text/brief',createdAt:Date.now(),source:'Create from brief',status:'Resizing…'},...prev]);
-      try{
-        const outputs=await Promise.all(PLACEMENT_SIZES.map(async([label,w,h])=>({
-          id:crypto.randomUUID(),name:`${reference.name.replace(/\.[^.]+$/,'')} — ${label}`,url:await resizeToCanvas(reference.url,w,h),
-          mime:'image/jpeg',width:w,height:h,createdAt:Date.now(),source:'Resize',status:'Ready',
-        })));
-        setAssets(prev=>[...outputs,...prev.filter(x=>x.id!==id)]);
-        notify(`Resized to ${outputs.length} placement formats.`);
-      }catch{
-        setAssets(prev=>prev.map(x=>x.id===id?{...x,status:'Failed — could not read source image'}:x));
+  return data;
+}
+function Brand() {
+  return (
+    <a className="brand" href="/home" aria-label="Naughty Pilot home">
+      <img src="/naughty-pilot-logo.png" alt="NP" />
+      <span className="np-brand-name">
+        NAUGHTY
+        <br />
+        <b>PILOT</b>
+      </span>
+    </a>
+  );
+}
+function Badge({
+  children,
+  tone = "neutral",
+}: {
+  children: any;
+  tone?: string;
+}) {
+  return <span className={`badge ${tone}`}>{children}</span>;
+}
+function Empty({
+  icon: Icon = Compass,
+  title,
+  description,
+  action,
+}: {
+  icon?: any;
+  title: string;
+  description: string;
+  action?: any;
+}) {
+  return (
+    <div className="empty">
+      <span className="empty-icon">
+        <Icon size={26} />
+      </span>
+      <h3>{title}</h3>
+      <p>{description}</p>
+      {action}
+    </div>
+  );
+}
+function Field({
+  label,
+  children,
+  hint,
+}: {
+  label: string;
+  children: any;
+  hint?: string;
+}) {
+  const fieldId = React.useId();
+  const control =
+    React.isValidElement(children) &&
+    ["input", "select", "textarea"].includes(String(children.type));
+  return (
+    <div className="field">
+      {control ? (
+        <label htmlFor={fieldId}>{label}</label>
+      ) : (
+        <span>{label}</span>
+      )}
+      {control
+        ? React.cloneElement(children as React.ReactElement<any>, {
+            id: fieldId,
+            "aria-describedby": hint ? fieldId + "-hint" : undefined,
+          })
+        : children}
+      {hint && <small id={fieldId + "-hint"}>{hint}</small>}
+    </div>
+  );
+}
+function Metric({
+  label,
+  value,
+  detail,
+  icon: Icon = TrendingUp,
+}: {
+  label: string;
+  value: any;
+  detail: string;
+  icon?: any;
+}) {
+  return (
+    <div className="metric">
+      <div className="metric-label">
+        {label}
+        <Icon size={15} />
+      </div>
+      <strong>{value}</strong>
+      <span>{detail}</span>
+    </div>
+  );
+}
+function Legal({ kind }: { kind: string }) {
+  return (
+    <div className="legal-copy">
+      <h3>{kind === "terms" ? "Terms of service" : "Privacy & consent"}</h3>
+      {kind === "terms" ? (
+        <>
+          <p>
+            Naughty Pilot is for creators aged 18 or older. You must own or have
+            permission to promote every destination and asset you use.
+          </p>
+          <p>
+            Promotions require mutual consent. Spam, impersonation, abusive
+            activity, fake engagement, non-consensual content, and bypassing
+            platform restrictions are prohibited. Follow the rules of every
+            platform you use.
+          </p>
+          <p>
+            Attribution is based on recorded first-party traffic and
+            creator-provided conversion reports. It is not a guarantee of
+            earnings or proof of platform subscriber counts. Block or report
+            abusive creators through Peer Swap.
+          </p>
+          <p>
+            This self-hosted release provides no subscription billing or
+            commercial service commitment. Production operators must supply
+            their legal entity, support details, applicable terms, and retention
+            policy before public launch.
+          </p>
+        </>
+      ) : (
+        <>
+          <p>
+            We store your account email, password hash, profile, campaign data,
+            anonymous session identifiers, and first-party tracking events. We
+            do not record subscriber names or payment credentials.
+          </p>
+          <p>
+            Website tracking runs only when your website sets{" "}
+            <code>window.NP_TRACKING_CONSENT = true</code>. Do Not Track is
+            respected. Obtain visitors’ consent where required. Country is not
+            inferred or invented.
+          </p>
+          <p>
+            You choose whether your profile and region appear in discovery.
+            Partners see aggregate collaboration results, never subscriber
+            identities. Export or delete your data in Account.
+          </p>
+          <p>
+            The database stays on this server. The operator is responsible for
+            secure backups, retention, consent notices, and lawful deployment.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+function Modal({
+  title,
+  children,
+  close,
+  wide = false,
+}: {
+  title: string;
+  children: any;
+  close: () => void;
+  wide?: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement;
+    ref.current?.querySelector<HTMLElement>("input,button,select")?.focus();
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+      if (e.key === "Tab") {
+        const els = [
+          ...(ref.current?.querySelectorAll<HTMLElement>(
+            "button,input,select,textarea,a[href]",
+          ) || []),
+        ].filter((el) => !el.hasAttribute("disabled"));
+        const first = els[0],
+          last = els.at(-1);
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
       }
-      return;
-    }
-
-    setAssets(prev=>[{id,name:brief,brief,action,mime:'text/brief',createdAt:Date.now(),source:'Create from brief',status:'Working…'},...prev]);
-    try{
-      const r=await fetch('/api/generate-creative',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brief,action})});
-      const d=await r.json();
-      if(!r.ok)throw new Error(d.error||'Creative action failed.');
-      setAssets(prev=>prev.map(x=>x.id===id?{...x,status:'Ready',resultText:d.text}:x));
-      notify('Creative action complete.');
-    }catch(e:any){
-      setAssets(prev=>prev.map(x=>x.id===id?{...x,status:`Failed — ${e.message}`}:x));
-    }
-  }
-
-  function buildFromSite(){
-    if(!websiteResult)return;
-    const siteImages=(websiteResult.images||[]).slice(0,6);
-    if(siteImages.length)setImages(siteImages);
-    setPage('Campaign Builder');
-    runBuild(`Campaign built from ${websiteResult.profile?.brand||'your site'} — every layer is editable.`);
-    if(siteImages.length)requestAiCampaign(siteImages.map((u:string)=>({url:u})));
-  }
-
-  function sendChat(){
-    if(!chatMsg.trim())return;
-    const q=chatMsg.trim();
-    setChatLog(l=>[...l,{role:'user',text:q}]);
-    setChatMsg('');
-    setTimeout(()=>{
-      const lower=q.toLowerCase();
-      let reply='Here\'s the breakdown: focus your first $500 on TrafficJunky CPM targeting 21+ US, then layer in ExoClick native once you have CTR data. Optimize to the top 2 sources by day 4.';
-      if(/budget|spend/i.test(lower))reply=`With $${budget} test budget at $${price}/mo, the model projects ${m.mid} paid subs (range ${m.low}–${m.high}). Allocate 40% TrafficJunky, 30% ExoClick, rest across Reddit and X organic.`;
-      if(/creative|photo|image/i.test(lower))reply='Upload a JPG or PNG in the Campaign Builder tab. The AI analyzes the strongest angle — face-forward with natural lighting consistently outperforms.';
-      if(/traffic|channel|source/i.test(lower))reply='Your current mix puts 24% on TrafficJunky and 20% ExoClick — that\'s the right spine. Reddit and X organic at ~12% each compound over time without added spend.';
-      if(/forecast|project|revenue/i.test(lower))reply=`At $${price}/mo with ${m.mid} conversions, modeled revenue is $${m.rev.toFixed(0)}. ROAS: ${m.roas.toFixed(2)}x. That improves significantly after the test phase when you cut low-performing sources.`;
-      setChatLog(l=>[...l,{role:'ai',text:reply}]);
-      setTimeout(()=>chatRef.current?.scrollTo({top:9999,behavior:'smooth'}),50);
-    },1100);
-  }
-
-  async function analyzeWebsite(){
-    if(!websiteUrl.trim())return;
-    setWebsiteLoading(true);setWebsiteResult(null);setWebsiteError(null);
-    try{
-      const r=await fetch('/api/analyze-website',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:websiteUrl})});
-      const d=await r.json();
-      if(!r.ok)throw new Error(d.error||'Analysis failed.');
-      setWebsiteResult(d);
-      if(d.profile?.brand)setCreatorName(d.profile.brand);
-      const positioning=d.profile?.positioning||'';
-      if(/luxury/i.test(positioning))setAngle('Luxury lifestyle');
-      else if(/fantasy|discreet/i.test(positioning))setAngle('Mysterious & exclusive');
-    }catch(e:any){setWebsiteError(e.message);}
-    finally{setWebsiteLoading(false);}
-  }
-
-  const isBlack=true;
-
-  const[isDesktop,setIsDesktop]=useState(()=>typeof window==='undefined'||window.innerWidth>=1180);
-  useEffect(()=>{
-    const mq=window.matchMedia('(min-width: 1180px)');
-    const onChange=()=>setIsDesktop(mq.matches);
-    mq.addEventListener('change',onChange);
-    return()=>mq.removeEventListener('change',onChange);
-  },[]);
-
-  if(!isDesktop)return(
-    <div className="desktop-gate">
-      <img src="/naughty-pilot-logo.png" alt="Naughty Pilot"/>
-      <p>NaughtyPilot is a desktop campaign workspace. Open it on a screen at least 1180px wide.</p>
-    </div>
-  );
-
-  return(
-    <div className="app">
-      <aside>
-        <div className="brand"><img src="/naughty-pilot-logo.png" alt="Naughty Pilot"/></div>
-        {isBlack&&<div className="tier elite"><SlidersHorizontal/><div><b>BLACK ACCOUNT</b><span>Highest access level</span></div></div>}
-        <nav>
-          {nav.map(([Icon,label])=>
-            <button key={label} className={page===label?'on':''} onClick={()=>setPage(label)}>
-              <Icon/><span>{label}</span>
-            </button>
-          )}
-        </nav>
-        <div className="side-note elite">
-          <Zap/><div><b>Operator priority active</b><span>Unlimited planning · premium source presets · priority campaign routing</span></div>
-        </div>
-      </aside>
-
-      <main>
+    };
+    document.addEventListener("keydown", handler);
+    return () => {
+      document.removeEventListener("keydown", handler);
+      previous?.focus({ preventScroll: true });
+    };
+  }, []);
+  return (
+    <div
+      className="modal-backdrop"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
+    >
+      <div
+        ref={ref}
+        className={`modal ${wide ? "wide" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
         <header>
-          <span className="head-title">Ready to build from your photos</span>
-          <div className="head-actions">
-            <button aria-label="Notifications" onClick={()=>notify('No new notifications.')}><Bell/></button>
-            <button aria-label="Billing & settings" onClick={()=>setSettingsOpen(true)}><Settings/></button>
-          </div>
+          <h2>{title}</h2>
+          <button
+            className="icon-button"
+            aria-label="Close dialog"
+            onClick={close}
+          >
+            <X size={20} />
+          </button>
         </header>
-
-        {page==='Overview'&&<OverviewPage budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} images={images} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} mixOpen={mixOpen} setMixOpen={setMixOpen} mix={mix} setMix={setMix} totalMix={totalMix} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} isBlack={isBlack} websiteUrl={websiteUrl} setWebsiteUrl={setWebsiteUrl} websiteLoading={websiteLoading} websiteResult={websiteResult} websiteError={websiteError} analyzeWebsite={analyzeWebsite} buildFromSite={buildFromSite} aiCampaign={aiCampaign} onBuild={()=>runBuild('Campaign built — every layer is editable.')}/>}
-        {page==='Campaign Builder'&&<CampaignPage budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} images={images} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} setBillingOpen={setBillingOpen} adHook={websiteResult?.adSuggestions?.[0]} aiCampaign={aiCampaign} assets={assets} submitBrief={submitBrief} onBuild={()=>runBuild('Campaign built — every layer is editable.')}/>}
-        {page==='Chat Studio'&&<ChatPage chatLog={chatLog} chatMsg={chatMsg} setChatMsg={setChatMsg} sendChat={sendChat} chatRef={chatRef} drawerOpen={drawerOpen} setDrawerOpen={setDrawerOpen} notify={notify}/>}
-        {page==='Model Assets'&&<AssetsPage websiteUrl={websiteUrl} setWebsiteUrl={setWebsiteUrl} websiteLoading={websiteLoading} websiteResult={websiteResult} websiteError={websiteError} analyzeWebsite={analyzeWebsite} buildFromSite={buildFromSite}/>}
-        {page==='Creatives'&&<CreativesPage assets={assets} submitBrief={submitBrief} upload={upload} fileRef={fileRef}/>}
-        {page==='Traffic Mix'&&<TrafficPage sources={sources} setSources={setSources} forecast={forecast} notify={notify}/>}
-        {page==='Forecast'&&<ForecastPage assumptions={assumptions} setAssumptions={setAssumptions} sources={sources} setSources={setSources} forecast={forecast} scenarios={scenarios} setScenarios={setScenarios} notify={notify}/>}
-        {page==='Launch Plan'&&<LaunchPage m={m} budget={budget} price={price} creatorName={creatorName} setBillingOpen={setBillingOpen} notify={notify}/>}
-        {page==='AI Skills'&&<SkillsPage notify={notify}/>}
-        {page==='Naughty Cheat Codes'&&<CheatCodesPage notify={notify} loadCode={loadCheatCode}/>}
-
-        <footer>
-          <b>NAUGHTY PILOT</b>
-          <span>Forecasts vary with creative quality, audience, offer, tracking, seasonality, and traffic quality.</span>
-        </footer>
-      </main>
-
-      {toast&&<div className="toast" onClick={()=>setToast(null)}><span>✓</span> {toast}</div>}
-      {settingsOpen&&<SettingsModal close={()=>setSettingsOpen(false)} onFund={()=>{setSettingsOpen(false);setBillingOpen(true);}}/>}
-      {billingOpen&&<BillingBoundary budget={budget} creatorName={creatorName} close={()=>setBillingOpen(false)}/>}
-      {drawerOpen&&<Drawer title={drawerOpen} close={()=>setDrawerOpen(null)} notify={notify}/>}
-    </div>
-  );
-}
-
-function OverviewPage({budget,setBudget,price,setPrice,goal,setGoal,image,images,building,demoStep,generated,upload,fileRef,m,mixOpen,setMixOpen,mix,setMix,totalMix,angle,setAngle,region,setRegion,isBlack,websiteUrl,setWebsiteUrl,websiteLoading,websiteResult,websiteError,analyzeWebsite,buildFromSite,aiCampaign,onBuild}:any){
-  return(
-    <div className="intro">
-      <div>
-        <span>COMMAND CENTER</span>
-        <h1>Command every channel.<br/><em>Scale what converts.</em></h1>
-        <p>Your highest-access acquisition workspace—creative generation, premium traffic routing, forecast modeling, and campaign execution in one command center.</p>
+        {children}
       </div>
-      <Builder budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} images={images} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} mixOpen={mixOpen} setMixOpen={setMixOpen} mix={mix} setMix={setMix} totalMix={totalMix} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} adHook={websiteResult?.adSuggestions?.[0]} aiCampaign={aiCampaign} onBuild={onBuild}/>
-      {isBlack&&<div className="website-panel">
-        <div><span>MODEL INTELLIGENCE</span><h2>Website brand scan</h2><p>Drop your OF/Fansly URL — AI extracts brand signals, ad angles, and copy hooks, then builds your campaign from them.</p></div>
-        <div><div className="website-form"><input value={websiteUrl} onChange={e=>setWebsiteUrl(e.target.value)} placeholder="https://onlyfans.com/yourname" onKeyDown={e=>e.key==='Enter'&&analyzeWebsite()}/><button onClick={analyzeWebsite} disabled={websiteLoading}>{websiteLoading?<><i className="site-loader"/></>:<><Sparkles/>Scan</>}</button></div>{websiteError&&<div className="site-error">{websiteError}</div>}{websiteResult&&<><div className="site-result"><div><span>BRAND</span><b>{websiteResult.profile?.brand}</b></div><div><span>POSITIONING</span><b>{websiteResult.profile?.positioning}</b></div><div><span>PRIMARY CTA</span><b>{websiteResult.profile?.primaryCta}</b></div><div><span>VOICE</span><b>{websiteResult.profile?.voice}</b></div>{websiteResult.adSuggestions?.slice(0,2).map((s:string,i:number)=><div key={i} className="wide"><span>AD HOOK {i+1}</span><b>{s}</b></div>)}</div><button className="primary" style={{marginTop:12}} onClick={buildFromSite}><WandSparkles/>Build campaign from this site</button></>}</div>
-      </div>}
     </div>
   );
 }
-
-function CampaignPage({budget,setBudget,price,setPrice,goal,setGoal,image,images,building,demoStep,generated,upload,fileRef,m,angle,setAngle,region,setRegion,setBillingOpen,adHook,aiCampaign,assets,submitBrief,onBuild}:any){
-  const[step,setStep]=useState(1);
-  return(
-    <div className="campaign-flow">
-      <div className="campaign-tabs">
-        {[['1','Campaign'],['2','Ad set'],['3','Creatives']].map(([n,label],i)=>
-          <React.Fragment key={n}><button className={step===i+1?'active':''} onClick={()=>setStep(i+1)}><span>{n}</span>{label}</button>{i<2&&<i/>}</React.Fragment>
+function Auth({ onSuccess }: { onSuccess: () => void }) {
+  const [register, setRegister] = useState(true),
+    [email, setEmail] = useState(""),
+    [password, setPassword] = useState(""),
+    [adult, setAdult] = useState(false),
+    [terms, setTerms] = useState(false),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false),
+    [legal, setLegal] = useState("");
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api("/auth/" + (register ? "register" : "login"), "POST", {
+        email,
+        password,
+        adult,
+        terms,
+      });
+      onSuccess();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="auth-page">
+      <div className="auth-story">
+        <Brand />
+        <div>
+          <Badge tone="accent">
+            <span className="status-dot" /> Your creator growth cockpit
+          </Badge>
+          <h1>
+            Know where your
+            <br />
+            <em>growth comes from.</em>
+          </h1>
+          <p>
+            One clear view of your traffic, campaigns, and creator
+            collaborations. Less guesswork. More momentum.
+          </p>
+          <div className="story-points">
+            <span>
+              <LinkIcon />
+              Track every campaign
+            </span>
+            <span>
+              <TrendingUp />
+              Understand what converts
+            </span>
+            <span>
+              <Users />
+              Grow with compatible creators
+            </span>
+          </div>
+        </div>
+        <small>Built for independent creators. Made for clarity.</small>
+      </div>
+      <div className="auth-form-wrap">
+        <form onSubmit={submit} className="auth-form">
+          <div className="mobile-brand">
+            <Brand />
+          </div>
+          <span className="eyebrow">LET’S GET YOU IN THE AIR</span>
+          <h2>
+            {register ? "Your next chapter starts here." : "Welcome back."}
+          </h2>
+          <p>
+            {register
+              ? "Create your account. Your first tracked link is a few steps away."
+              : "Sign in to your creator cockpit."}
+          </p>
+          <Field label="Email address">
+            <input
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              placeholder="you@example.com"
+            />
+          </Field>
+          <Field
+            label="Password"
+            hint={register ? "Use at least 10 characters." : ""}
+          >
+            <input
+              type="password"
+              minLength={register ? 10 : 1}
+              autoComplete={register ? "new-password" : "current-password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              placeholder="Enter your password"
+            />
+          </Field>
+          {register && (
+            <>
+              <label className="checkline">
+                <input
+                  type="checkbox"
+                  checked={adult}
+                  onChange={(e) => setAdult(e.target.checked)}
+                  required
+                />
+                I confirm I am 18 years or older.
+              </label>
+              <label className="checkline">
+                <input
+                  type="checkbox"
+                  checked={terms}
+                  onChange={(e) => setTerms(e.target.checked)}
+                  required
+                />
+                <span>
+                  I agree to the{" "}
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => setLegal("terms")}
+                  >
+                    terms
+                  </button>{" "}
+                  and{" "}
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => setLegal("privacy")}
+                  >
+                    privacy policy
+                  </button>
+                  .
+                </span>
+              </label>
+            </>
+          )}
+          {error && (
+            <div className="inline-error" role="alert">
+              <AlertCircle size={16} />
+              {error}
+            </div>
+          )}
+          <button className="button primary full" disabled={busy}>
+            {busy ? (
+              <Loader2 className="spin" size={18} />
+            ) : (
+              <>
+                {register ? "Create account" : "Sign in"}
+                <ArrowRight size={18} />
+              </>
+            )}
+          </button>
+          <p className="auth-switch">
+            {register ? "Already have an account?" : "New to Naughty Pilot?"}{" "}
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => {
+                setRegister(!register);
+                setError("");
+              }}
+            >
+              {register ? "Sign in" : "Create account"}
+            </button>
+          </p>
+          <div className="secure-note">
+            <LockKeyhole size={14} /> Your data belongs to you. Always.
+          </div>
+        </form>
+      </div>
+      {legal && (
+        <Modal
+          title={legal === "terms" ? "Terms of service" : "Privacy policy"}
+          close={() => setLegal("")}
+        >
+          <Legal kind={legal} />
+        </Modal>
+      )}
+    </div>
+  );
+}
+function Onboarding({
+  user,
+  existing,
+  onComplete,
+}: {
+  user: any;
+  existing: any;
+  onComplete: () => void;
+}) {
+  const [step, setStep] = useState(0),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({
+    display_name: "",
+    niche: "Lifestyle",
+    platform: "Subscription platform",
+    destination: "",
+    website: "",
+    audience_tier: "Under 1k",
+    discovery: false,
+    promotion_types: ["Link Swap"],
+    ...existing,
+  });
+  const [campaignName, setCampaignName] = useState("My first campaign"),
+    [source, setSource] = useState("Reddit"),
+    [firstLink, setFirstLink] = useState<any>(null);
+  const titles = [
+    "Make it yours.",
+    "Where should your audience land?",
+    "Connect your website.",
+    "Bring your platforms together.",
+    "Create your first tracked link.",
+    "You’re ready for takeoff.",
+  ];
+  const set = (key: string, value: any) => setForm({ ...form, [key]: value });
+  async function next() {
+    setBusy(true);
+    setError("");
+    try {
+      if (step === 0 && !form.display_name.trim())
+        throw new Error("Enter your display name.");
+      if (step === 1) {
+        await api("/profile", "PUT", { ...form, onboarded: false });
+      }
+      if (step === 2 && form.website) {
+        await api("/websites", "POST", { url: form.website });
+        await api("/profile", "PUT", { ...form, onboarded: false });
+      }
+      if (step === 4) {
+        const c = await api("/campaigns", "POST", {
+          name: campaignName,
+          source,
+          destination: form.destination,
+          start_date: today(),
+        });
+        const state = await api("/state");
+        setFirstLink(state.links.find((l: any) => l.campaign_id === c.id));
+      }
+      if (step === 5) {
+        await api("/profile", "PUT", { ...form, onboarded: true });
+        onComplete();
+      } else setStep(step + 1);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="onboarding">
+      <Brand />
+      <div className="onboard-card">
+        <div className="steps">
+          {titles.map((_, i) => (
+            <span key={i} className={i <= step ? "done" : ""}>
+              {i < step ? <Check size={12} /> : i + 1}
+            </span>
+          ))}
+        </div>
+        <span className="eyebrow">STEP {step + 1} OF 6</span>
+        <h1>{titles[step]}</h1>
+        <p className="muted">
+          {
+            [
+              "Your public creator identity. You control what you share.",
+              "Add a URL you own. No platform password required.",
+              "Optional now. Install first-party tracking when you’re ready.",
+              "Official integrations can be connected as they become available.",
+              "Use it in your next post. We’ll measure the clicks.",
+              "Your dashboard starts with your real data, not made-up numbers.",
+            ][step]
+          }
+        </p>
+        {step === 0 && (
+          <>
+            <Field label="Display name">
+              <input
+                value={form.display_name}
+                onChange={(e) => set("display_name", e.target.value)}
+                placeholder="Your creator name"
+                maxLength={80}
+              />
+            </Field>
+            <div className="form-grid">
+              <Field label="Creator niche">
+                <select
+                  value={form.niche}
+                  onChange={(e) => set("niche", e.target.value)}
+                >
+                  {[
+                    "Lifestyle",
+                    "Fitness",
+                    "Fashion",
+                    "Gaming",
+                    "Art",
+                    "Music",
+                    "Other",
+                  ].map((v) => (
+                    <option key={v}>{v}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Audience size (self-reported)">
+                <select
+                  value={form.audience_tier}
+                  onChange={(e) => set("audience_tier", e.target.value)}
+                >
+                  {["Under 1k", "1k–10k", "10k–50k", "50k+"].map((v) => (
+                    <option key={v}>{v}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+          </>
         )}
-        <div className="autosave"><i/>Autosaved</div>
+        {step === 1 && (
+          <>
+            <Field label="Subscription platform">
+              <select
+                value={form.platform}
+                onChange={(e) => set("platform", e.target.value)}
+              >
+                {[
+                  "Subscription platform",
+                  "OnlyFans",
+                  "Fansly",
+                  "Patreon",
+                  "Pornhub",
+                  "Other",
+                ].map((v) => (
+                  <option key={v}>{v}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Creator page URL">
+              <input
+                type="url"
+                value={form.destination}
+                onChange={(e) => set("destination", e.target.value)}
+                placeholder="https://your-platform.com/you"
+              />
+            </Field>
+            <div className="info">
+              <ShieldCheck size={20} />
+              <span>
+                This saves your destination. Subscriber sync is not available;
+                conversions can be reported by you.
+              </span>
+            </div>
+          </>
+        )}
+        {step === 2 && (
+          <>
+            <Field label="Website URL (optional)">
+              <input
+                type="url"
+                value={form.website}
+                onChange={(e) => set("website", e.target.value)}
+                placeholder="https://yourwebsite.com"
+              />
+            </Field>
+            <div className="info">
+              <Globe size={20} />
+              <span>
+                You’ll receive installation instructions and a domain
+                verification record in Account.
+              </span>
+            </div>
+          </>
+        )}
+        {step === 3 && (
+          <>
+            <div className="integration-preview">
+              {["Reddit", "Instagram", "X / Twitter", "Google Analytics"].map(
+                (v) => (
+                  <div key={v}>
+                    <span className="source-symbol">{v[0]}</span>
+                    <strong>{v}</strong>
+                    <Badge>API setup required</Badge>
+                  </div>
+                ),
+              )}
+            </div>
+            <p className="muted">
+              Tracked links work without a social integration. No third-party
+              account is connected automatically.
+            </p>
+            <label className="checkline">
+              <input
+                type="checkbox"
+                checked={form.discovery}
+                onChange={(e) => set("discovery", e.target.checked)}
+              />
+              Opt into Peer Swap creator discovery.
+            </label>
+          </>
+        )}
+        {step === 4 && (
+          <>
+            <Field label="Campaign name">
+              <input
+                value={campaignName}
+                onChange={(e) => setCampaignName(e.target.value)}
+                maxLength={100}
+              />
+            </Field>
+            <Field label="Traffic source">
+              <select
+                value={source}
+                onChange={(e) => setSource(e.target.value)}
+              >
+                {[
+                  "Reddit",
+                  "X / Twitter",
+                  "Instagram",
+                  "TikTok",
+                  "YouTube",
+                  "Email",
+                  "Other",
+                ].map((v) => (
+                  <option key={v}>{v}</option>
+                ))}
+              </select>
+            </Field>
+            <div className="destination-preview">
+              <LinkIcon size={16} />
+              <span>{form.destination}</span>
+            </div>
+          </>
+        )}
+        {step === 5 && (
+          <>
+            <div className="ready-icon">
+              <Check size={32} />
+            </div>
+            {firstLink && (
+              <div className="first-link">
+                <span>Your first tracked link</span>
+                <code>{firstLink.url}</code>
+              </div>
+            )}
+            <p>
+              Share your link to start recording traffic. Your first results
+              will appear on Home.
+            </p>
+          </>
+        )}
+        {error && (
+          <div className="inline-error" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="form-footer">
+          {step > 0 && step < 5 ? (
+            <button
+              className="button"
+              disabled={busy}
+              onClick={() => setStep(step - 1)}
+            >
+              <ArrowLeft size={16} />
+              Back
+            </button>
+          ) : (
+            <span />
+          )}
+          <button className="button primary" disabled={busy} onClick={next}>
+            {busy
+              ? "Saving…"
+              : step === 5
+                ? "Open my cockpit"
+                : step === 2 && !form.website
+                  ? "Skip website"
+                  : step === 3
+                    ? "Continue without integrations"
+                    : "Continue"}
+            <ArrowRight size={16} />
+          </button>
+        </div>
       </div>
-      {step===1&&<div className="campaign-stage">
-        <div className="stage-hero"><span>AI MEDIA BUYER</span><h1>Drop your photos.<br/><em>AI builds the campaign.</em></h1><p>From one creative to a complete campaign—objective, audience, placements, budget, copy, ad variations, and forecast.</p><button className="ai-do" onClick={()=>setStep(2)}><WandSparkles/>AI DO IT <ArrowUpRight/></button></div>
-        <Builder budget={budget} setBudget={setBudget} price={price} setPrice={setPrice} goal={goal} setGoal={setGoal} image={image} images={images} building={building} demoStep={demoStep} generated={generated} upload={upload} fileRef={fileRef} m={m} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} adHook={adHook} aiCampaign={aiCampaign} onBuild={onBuild} aiMode/>
-      </div>}
-      {step===2&&<AdSetPage budget={budget} setBudget={setBudget} angle={angle} setAngle={setAngle} region={region} setRegion={setRegion} onNext={()=>setStep(3)}/>}
-      {step===3&&<CreativesPage assets={assets} submitBrief={submitBrief} upload={upload} fileRef={fileRef} onLaunch={()=>setBillingOpen(true)}/>}
+      <small>Signed in as {user.email} · Built for creators aged 18+</small>
     </div>
   );
 }
-
-const angleHooks:Record<string,string>={
-  'Confident & playful':'Come see what everyone keeps talking about.',
-  'Mysterious & exclusive':'Some doors only open once. This is one of them.',
-  'Girl next door':'Your favorite girl, closer than ever.',
-  'Luxury lifestyle':'Indulge in the experience you deserve.',
-  'Fitness & wellness':'Strong, confident, completely unfiltered.',
-};
-
-function Builder({budget,setBudget,price,setPrice,goal,setGoal,image,images,building,demoStep,generated,upload,fileRef,m,mixOpen,setMixOpen,mix,setMix,totalMix,angle,setAngle,region,setRegion,adHook,aiCampaign,onBuild,aiMode}:any){
-  const totalMixVal=mix?mix.reduce((a:number,b:number)=>a+b,0):100;
-  const topChannels=[...channels].sort((a,b)=>b.base-a.base).slice(0,3).map(c=>c.name).join(' · ');
-  const copyHook=aiCampaign?.adCopy?.[0]?.hook||adHook||angleHooks[angle]||angleHooks['Confident & playful'];
-  const objective=aiCampaign?.objective||'Subscriber growth';
-  const audienceNote=aiCampaign?.audienceNotes||angle;
-  return(
-    <div className="builder">
-      <div className="upload" onClick={()=>fileRef?.current?.click()} style={{cursor:'pointer',position:'relative'}}>
-        {building&&<div className="scan"><Sparkles/><b>Building campaign</b><span>{['','Analyzing creative','Selecting objective','Building audience','Allocating placements','Generating ad suggestions','Campaign complete'][demoStep]}</span><div className="progress"><i style={{width:`${(demoStep/6)*100}%`}}/></div></div>}
-        {image&&!building&&<img src={image} alt="Campaign creative" style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',borderRadius:0,opacity:.55}}/>}
-        <input ref={fileRef} type="file" accept="image/*" multiple style={{display:'none'}} onChange={e=>upload(e.target.files)}/>
-        <Upload style={{width:36,height:36,marginBottom:12,color:'#ef2931'}}/>
-        <b>{images?.length?`${images.length} photo${images.length>1?'s':''} loaded`:'Drop campaign photos'}</b>
-        <span>{images?.length>1?'AI ranked your creatives · strongest angle leads':'One or more JPG/PNG files · AI analyzes and ranks every photo'}</span>
-        <button className="primary" style={{marginTop:16}} onClick={e=>{e.stopPropagation();fileRef?.current?.click();}}>{images?.length?'Add more photos':'Choose photos'}</button>
+function GrowthChart({ data }: { data: any[] }) {
+  const max = Math.max(1, ...data.map((d) => d.visitors));
+  const points = data
+    .map(
+      (d, i) =>
+        `${(i / (data.length - 1)) * 600},${155 - (d.visitors / max) * 125}`,
+    )
+    .join(" ");
+  return (
+    <div className="chart">
+      <svg
+        viewBox="0 0 600 180"
+        role="img"
+        aria-label="Recorded unique visitors over the last fourteen days"
+      >
+        <defs>
+          <linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#f51a35" stopOpacity=".2" />
+            <stop offset="100%" stopColor="#f51a35" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {[30, 70, 110, 155].map((y) => (
+          <line
+            key={y}
+            x1="0"
+            x2="600"
+            y1={y}
+            y2={y}
+            stroke="#2b2e32"
+            strokeDasharray="4 6"
+          />
+        ))}
+        <polygon points={`0,155 ${points} 600,155`} fill="url(#chart-fill)" />
+        <polyline
+          points={points}
+          fill="none"
+          stroke="#f51a35"
+          strokeWidth="2.5"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <div className="chart-labels">
+        {data
+          .filter((_, i) => [0, 4, 9, 13].includes(i))
+          .map((d) => (
+            <span key={d.date}>
+              {new Date(d.date + "T12:00:00").toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+              })}
+            </span>
+          ))}
       </div>
-      <div className="controls">
-        <div className="ai-title">
-          {aiMode?<WandSparkles/>:<ShieldCheck/>}
-          <div><b>AI campaign setup</b><span>{generated?'Campaign generated · ready to edit':'Upload photos to generate every layer'}</span></div>
-        </div>
-        <label>Total test budget<b>${budget.toLocaleString()}</b>
-          <input type="range" min={100} max={10000} step={100} value={budget} onChange={e=>setBudget(+e.target.value)}/>
-          <div style={{display:'flex',justifyContent:'space-between',fontSize:8,color:'#666',marginTop:4}}><span>$100</span><span>$10k</span></div>
-        </label>
-        <label>Subscription price<b>${price}</b>
-          <input type="range" min={4.99} max={49.99} step={1} value={price} onChange={e=>setPrice(+e.target.value)}/>
-        </label>
-        <label>Subscriber target<b>{goal}+</b>
-          <input type="range" min={10} max={500} step={5} value={goal} onChange={e=>setGoal(+e.target.value)}/>
-        </label>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
-          <select value={angle} onChange={e=>setAngle(e.target.value)}>
-            {['Confident & playful','Mysterious & exclusive','Girl next door','Luxury lifestyle','Fitness & wellness'].map(a=><option key={a}>{a}</option>)}
-          </select>
-          <select value={region} onChange={e=>setRegion(e.target.value)}>
-            {['United States · 21+','United Kingdom · 21+','Canada · 21+','Australia · 21+','Global · 21+'].map(r=><option key={r}>{r}</option>)}
-          </select>
-        </div>
-        <button className="primary" style={{width:'100%',padding:'14px',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8}} onClick={()=>{image?onBuild?.():fileRef?.current?.click();}}>
-          <Sparkles/>Build {aiMode?'full campaign':'my campaign'} with AI
+    </div>
+  );
+}
+function currentSection() {
+  const path = location.pathname.replace(/^\/|\/$/g, "") || "home";
+  return NAV.some((n) => n[2] === path) || path === "admin" ? path : "home";
+}
+export function App() {
+  const [boot, setBoot] = useState(true),
+    [user, setUser] = useState<any>(null),
+    [profile, setProfile] = useState<any>(null),
+    [state, setState] = useState<any>(null),
+    [section, setSection] = useState(currentSection),
+    [range, setRange] = useState("30"),
+    [custom, setCustom] = useState({ from: today(), to: today() }),
+    [model, setModel] = useState("last-touch"),
+    [modal, setModal] = useState<any>(null),
+    [toast, setToast] = useState(""),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false),
+    [source, setSource] = useState("All sources"),
+    [peerFilters, setPeerFilters] = useState({
+      niche: "All niches",
+      audience: "All audiences",
+      platform: "All platforms",
+      promotion: "All promotions",
+      availability: "Available",
+      traffic: "All traffic ranges",
+      region: "",
+    }),
+    [compare, setCompare] = useState<string[]>([]),
+    [notifications, setNotifications] = useState(false),
+    [searchQuery, setSearchQuery] = useState("");
+  const timer = useRef<any>(null);
+  function message(t: string) {
+    setToast(t);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setToast(""), 4000);
+  }
+  function navigate(s: string) {
+    setSection(s);
+    history.pushState({}, "", `/${s}`);
+    setModal(null);
+    setSearchQuery("");
+    setNotifications(false);
+    setError("");
+    window.scrollTo(0, 0);
+  }
+  const rangeParams = () => {
+    const end = new Date();
+    if (range === "custom")
+      return `from=${encodeURIComponent(custom.from + "T00:00:00.000Z")}&to=${encodeURIComponent(custom.to + "T23:59:59.999Z")}`;
+    const start = new Date();
+    if (range === "today") start.setHours(0, 0, 0, 0);
+    else start.setDate(start.getDate() - Number(range));
+    return `from=${encodeURIComponent(start.toISOString())}&to=${encodeURIComponent(end.toISOString())}`;
+  };
+  async function refresh() {
+    const s = await api(`/state?${rangeParams()}&model=${model}`);
+    setState(s);
+    setProfile(s.profile);
+  }
+  async function bootup() {
+    try {
+      const d = await api("/auth/me");
+      setUser(d.user);
+      setProfile(d.profile);
+      if (d.profile?.onboarded) await refresh();
+    } catch (e: any) {
+      if (e.status === 401) setUser(null);
+      else setError(e.message);
+    } finally {
+      setBoot(false);
+    }
+  }
+  useEffect(() => {
+    bootup();
+    const h = () => {
+      setSection(currentSection());
+      setModal(null);
+      setSearchQuery("");
+      setNotifications(false);
+      setError("");
+    };
+    window.addEventListener("popstate", h);
+    return () => window.removeEventListener("popstate", h);
+  }, []);
+  useEffect(() => {
+    if (user && profile?.onboarded) refresh().catch((e) => setError(e.message));
+  }, [range, custom.from, custom.to, model]);
+  useEffect(() => {
+    if (!user || !profile?.onboarded) return;
+    const t = setInterval(() => refresh().catch(() => {}), 30000);
+    return () => clearInterval(t);
+  }, [user, profile?.onboarded, range, model]);
+  async function perform(
+    fn: () => Promise<any>,
+    success: string,
+    close = true,
+    reload = true,
+  ) {
+    setBusy(true);
+    setError("");
+    try {
+      await fn();
+      if (reload) await refresh();
+      message(success);
+      if (close) setModal(null);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function copy(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      message("Copied to clipboard");
+    } catch {
+      setModal({ type: "copy", value });
+    }
+  }
+  const formData = (e: React.FormEvent) =>
+    Object.fromEntries(new FormData(e.target as HTMLFormElement));
+  function createCampaign(e: React.FormEvent) {
+    e.preventDefault();
+    const b: any = formData(e);
+    perform(async () => {
+      await api("/campaigns", "POST", b);
+      setSource("All sources");
+    }, "Campaign and tracking link created");
+  }
+  async function showQR(link: any) {
+    try {
+      const data = await QRCode.toDataURL(link.url, {
+        width: 300,
+        margin: 2,
+        color: { dark: "#17191b", light: "#ffffff" },
+      });
+      setModal({ type: "qr", link, data });
+    } catch {
+      message("Could not create QR code.");
+    }
+  }
+  if (boot)
+    return (
+      <div className="loading-page">
+        <Brand />
+        <Loader2 className="spin" />
+        <p>Opening your cockpit…</p>
+      </div>
+    );
+  if (!user) return <Auth onSuccess={bootup} />;
+  if (!profile?.onboarded)
+    return <Onboarding user={user} existing={profile} onComplete={bootup} />;
+  if (!state)
+    return (
+      <div className="loading-page">
+        <Brand />
+        <p>{error || "Loading your results…"}</p>
+        <button
+          className="button"
+          onClick={() => refresh().catch((e) => setError(e.message))}
+        >
+          Retry
         </button>
       </div>
-      {generated&&<div className="ai-output">
-        <div><span>OBJECTIVE</span><b>{objective}</b><small>Optimized for paid conversions</small></div>
-        <div><span>AUDIENCE</span><b>{region}</b><small>{audienceNote}</small></div>
-        <div><span>PLACEMENTS</span><b>{aiCampaign?.ranking?.[0]?.placement||topChannels}</b><small>Top sources by modeled ROI</small></div>
-        <div><span>AD COPY</span><b>{copyHook}</b><small>{aiCampaign?'Written by AI from your photos':adHook?'Pulled from your site scan':'Generated from your creative angle'}</small></div>
-      </div>}
-      <div className="metrics">
-        <div className="forecast-lead">
-          <span>MODELED MIDPOINT</span>
-          <strong>{m.mid}</strong>
-          <p>paid subscribers</p>
-          <em>Likely planning range <b>{m.low}–{m.high}</b></em>
-        </div>
-        <div className="metric"><CircleDollarSign/><span>Test spend</span><b>${budget.toLocaleString()}</b></div>
-        <div className="metric"><MousePointer2/><span>Est. clicks</span><b>{m.clicks.toLocaleString()}</b></div>
-        <div className="metric"><Eye/><span>Landing visits</span><b>{m.visits.toLocaleString()}</b></div>
-        <div className="metric"><Users/><span>Paid conversions</span><b>{m.mid}</b></div>
-        <div className="metric"><TrendingUp/><span>Modeled revenue</span><b>${m.rev.toLocaleString(undefined,{maximumFractionDigits:0})}</b></div>
-        <div className="metric"><Info/><span>Visit → paid</span><b>{(m.visits>0?(m.mid/m.visits*100):0).toFixed(2)}%</b></div>
-      </div>
-      {setMixOpen&&<div className="mix">
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-          <span style={{fontSize:9,fontFamily:'DM Mono',color:'#888',letterSpacing:'.08em'}}>RECOMMENDED TRAFFIC MIX</span>
-          <button style={{fontSize:9,color:'#aaa',display:'flex',alignItems:'center',gap:6,border:'1px solid #333',borderRadius:4,padding:'6px 10px',background:'none'}} onClick={()=>setMixOpen(!mixOpen)}><SlidersHorizontal style={{width:12}}/>Adjust mix</button>
-        </div>
-        <div className="channel-grid">
-          {channels.map((c,i)=><button key={c.name}><i style={{background:c.color,width:7,height:7,borderRadius:'50%',display:'inline-block'}}/><span style={{fontSize:9,color:'#ccc'}}>{c.name}</span><span style={{fontSize:9,color:'#888',marginLeft:'auto'}}>{Math.round((mix[i]/totalMixVal)*100)}%</span></button>)}
-        </div>
-        {mixOpen&&<div className="mixer">
-          {channels.map((c,i)=><label key={c.name}>{c.name}<input type="range" min={0} max={50} value={mix[i]} onChange={e=>{const n=[...mix];n[i]=+e.target.value;setMix(n);}}/><b>{Math.round((mix[i]/totalMixVal)*100)}%</b></label>)}
-        </div>}
-      </div>}
-    </div>
+    );
+  const m = state.metrics,
+    p = state.profile,
+    activeSwaps = state.swaps.filter((s: any) => s.status === "accepted"),
+    unread = state.notifications.filter((n: any) => !n.read).length;
+  const filteredCampaigns = state.campaigns.filter(
+    (c: any) => source === "All sources" || c.source === source,
   );
-}
-
-function AdSetPage({budget,setBudget,angle,setAngle,region,setRegion,onNext}:any){
-  return(
-    <div className="workspace">
-      <div className="workspace-head"><div><span>AD SET</span><h1>Audience & placement</h1><p>Configure targeting, geo, and channel allocation for this ad set.</p></div><button onClick={onNext}>Next: Creatives <ArrowUpRight/></button></div>
-      <div className="form-grid">
-        <section><h2>TARGETING</h2>
-          <label>Creative angle<select value={angle} onChange={e=>setAngle(e.target.value)}>{['Confident & playful','Mysterious & exclusive','Girl next door','Luxury lifestyle','Fitness & wellness'].map(a=><option key={a}>{a}</option>)}</select></label>
-          <label>Region & age gate<select value={region} onChange={e=>setRegion(e.target.value)}>{['United States · 21+','United Kingdom · 21+','Canada · 21+','Australia · 21+','Global · 21+'].map(r=><option key={r}>{r}</option>)}</select></label>
-          <label>Audience type<select><option>High-intent · lookalike</option><option>Broad · interest</option><option>Retargeting</option></select></label>
-        </section>
-        <section><h2>BUDGET</h2>
-          <label>Daily test budget<b>${budget.toLocaleString()}</b><input type="range" min={100} max={10000} step={100} value={budget} onChange={e=>setBudget(+e.target.value)}/></label>
-          <label>Bid strategy<select><option>Auto · AI optimized</option><option>Manual CPC</option><option>Target CPA</option></select></label>
-        </section>
-        <section><h2>SCHEDULE</h2>
-          <label>Start date<input type="date" defaultValue={new Date().toISOString().split('T')[0]}/></label>
-          <label>Duration<select><option>7 days (test)</option><option>14 days</option><option>30 days</option><option>Ongoing</option></select></label>
-        </section>
-      </div>
-    </div>
+  const peers = state.peers.filter(
+    (p: any) =>
+      (peerFilters.niche === "All niches" || p.niche === peerFilters.niche) &&
+      (peerFilters.audience === "All audiences" ||
+        p.audience_tier === peerFilters.audience) &&
+      (peerFilters.traffic === "All traffic ranges" ||
+        p.traffic_tier === peerFilters.traffic) &&
+      (peerFilters.platform === "All platforms" ||
+        p.platform === peerFilters.platform) &&
+      (peerFilters.promotion === "All promotions" ||
+        p.promotion_types.includes(peerFilters.promotion)) &&
+      (peerFilters.availability !== "Available" || p.availability) &&
+      (!peerFilters.region ||
+        p.region.toLowerCase().includes(peerFilters.region.toLowerCase())),
   );
-}
-
-function ChatPage({chatLog,chatMsg,setChatMsg,sendChat,chatRef,drawerOpen,setDrawerOpen,notify}:any){
-  return(
-    <div className="workspace">
-      <div className="workspace-head"><div><span>CHAT STUDIO</span><h1>AI campaign advisor</h1></div>
-        <div style={{display:'flex',gap:8}}>
-          <button onClick={()=>setDrawerOpen('Skills')}><Sparkles/>Skills</button>
-          <button onClick={()=>setDrawerOpen('Agents')}><Bot/>Agents</button>
-          <button onClick={()=>setDrawerOpen('Cheat Codes')}><Zap/>Cheat Codes</button>
+  const subscribers = state.subscriber_count || {
+    value: p.current_subscribers,
+    evidence: "creator_reported",
+  };
+  const top = m.rows
+    .slice()
+    .sort((a: any, b: any) => b.conversionRate - a.conversionRate)[0];
+  const searchItems = [
+    ...state.sources
+      .filter((name: string) =>
+        name.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
+      .map((name: string) => ({
+        id: "source-" + name,
+        name,
+        kind: "Source",
+        action: () => {
+          setSource(name);
+          navigate("campaigns");
+        },
+      })),
+    ...state.campaigns
+      .filter((c: any) =>
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
+      .map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        kind: "Campaign",
+        action: () => setModal({ type: "campaign-detail", campaign: c }),
+      })),
+    ...state.links
+      .filter((l: any) =>
+        (l.name + " " + l.slug)
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase()),
+      )
+      .map((l: any) => ({
+        id: l.id,
+        name: l.name,
+        kind: "Link",
+        action: () => setModal({ type: "link-detail", link: l }),
+      })),
+  ].slice(0, 8);
+  const heading: any = {
+    automation: [
+      "Your promotion schedule.",
+      "Plan promotions and follow up on reminders.",
+    ],
+    templates: [
+      "Campaign templates.",
+      "Save reusable starting points for your promotions.",
+    ],
+    "content-library": [
+      "Your content, organized.",
+      "Save public content references and campaign captions.",
+    ],
+    subscriptions: [
+      "Your subscription platforms.",
+      "Manage subscriber connections and reported counts.",
+    ],
+    settings: [
+      "Your preferences and privacy.",
+      "Manage your creator profile and account controls.",
+    ],
+    home: [
+      "Your growth, at a glance.",
+      "A clear view of where your audience comes from.",
+    ],
+    traffic: [
+      "Every source. One clear view.",
+      "See which channels bring people—and which ones convert.",
+    ],
+    campaigns: [
+      "Make every promotion count.",
+      "Simple campaigns. Clear results.",
+    ],
+    "peer-swap": [
+      "Grow better, together.",
+      "Find compatible creators. Share audiences. Measure the impact.",
+    ],
+    links: [
+      "Your links, working harder.",
+      "Create it. Share it. Know what happened.",
+    ],
+    analytics: [
+      "The story behind your growth.",
+      "Understand attribution, conversions, and campaign value.",
+    ],
+    account: [
+      "Your cockpit. Your rules.",
+      "Manage your identity, connections, and privacy.",
+    ],
+  };
+  return (
+    <div
+      className={`app-shell reference-theme ${section === "home" ? "dashboard-view" : ""}`}
+    >
+      <aside className="sidebar">
+        <Brand />
+        <div className="workspace-label">CREATOR WORKSPACE</div>
+        <nav aria-label="Primary navigation">
+          {NAV.map(([label, Icon, key]) => (
+            <button
+              key={key}
+              className={section === key ? "nav-item active" : "nav-item"}
+              onClick={() => navigate(key)}
+              aria-label={label}
+              aria-current={section === key ? "page" : undefined}
+            >
+              <Icon size={19} />
+              <span>
+                {(
+                  {
+                    Home: "Dashboard",
+                    Traffic: "Top Sources",
+                    Campaigns: "Campaigns",
+                    "Peer Swap": "Pure Swap",
+                    Links: "Link Analytics",
+                    Analytics: "Traffic Hub",
+                    Account: "My Accounts",
+                  } as any
+                )[label] || label}
+              </span>
+              {key === "peer-swap" &&
+                state.swaps.filter(
+                  (s: any) => s.to_id === user.id && s.status === "pending",
+                ).length > 0 && (
+                  <span className="nav-count">
+                    {
+                      state.swaps.filter(
+                        (s: any) =>
+                          s.to_id === user.id && s.status === "pending",
+                      ).length
+                    }
+                  </span>
+                )}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-bottom">
+          <div className="attribution-note">
+            <ShieldCheck size={19} />
+            <strong>Your growth. Honestly measured.</strong>
+            <p>First-party tracking. No invented subscribers.</p>
+          </div>
+          <button
+            className="creator-switch"
+            onClick={() => navigate("account")}
+          >
+            <span className="avatar small">{initials(p.display_name)}</span>
+            <span>
+              <strong>{p.display_name}</strong>
+              <small>Creator account</small>
+            </span>
+            <ChevronDown size={15} />
+          </button>
         </div>
-      </div>
-      <div style={{background:'#080808',border:'1px solid #321214',borderRadius:10,display:'flex',flexDirection:'column',height:460}}>
-        <div ref={chatRef} style={{flex:1,overflowY:'auto',padding:20,display:'flex',flexDirection:'column',gap:12}}>
-          {chatLog.map((m:any,i:number)=>
-            <div key={i} style={{display:'flex',gap:10,flexDirection:m.role==='user'?'row-reverse':'row'}}>
-              <div style={{width:28,height:28,borderRadius:'50%',background:m.role==='user'?'#d71920':'#1a1a1a',display:'grid',placeItems:'center',flexShrink:0,fontSize:10,fontWeight:700}}>{m.role==='user'?'U':<Bot style={{width:14}}/>}</div>
-              <div style={{background:m.role==='user'?'#1a0405':'#111',border:'1px solid',borderColor:m.role==='user'?'#4a1215':'#2a2a2a',borderRadius:8,padding:'10px 14px',maxWidth:'75%',fontSize:11,lineHeight:1.6,color:'#ddd'}}>{m.text}</div>
+      </aside>
+      <div className="main-shell">
+        <header className="topbar">
+          <div className="np-search-wrap">
+            <Search size={18} />
+            <input
+              type="search"
+              aria-label="Search sources, campaigns, or links"
+              placeholder="Search sources, campaigns, or links…"
+              value={searchQuery}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setSearchQuery("");
+                if (e.key === "Enter" && searchItems.length) {
+                  searchItems[0].action();
+                  setSearchQuery("");
+                }
+              }}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery.trim() && (
+              <div
+                className="np-search-results"
+                role="region"
+                aria-label="Search results"
+              >
+                {searchItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      item.action();
+                      setSearchQuery("");
+                    }}
+                  >
+                    <span>{item.name}</span>
+                    <small>{item.kind}</small>
+                  </button>
+                ))}
+                {searchItems.length === 0 && (
+                  <p className="np-search-empty" role="status">
+                    No matching sources, campaigns, or links.
+                  </p>
+                )}
+                <small className="np-search-help">
+                  Search your recorded sources, campaigns, and links.
+                </small>
+              </div>
+            )}
+          </div>
+          <div className="topbar-actions">
+            <button
+              className="button primary np-header-create"
+              aria-label="Create a new campaign"
+              onClick={() => setModal({ type: "campaign" })}
+            >
+              <Plus size={19} />
+              New Campaign
+            </button>
+            <button
+              className="icon-button"
+              aria-label="Settings"
+              onClick={() => navigate("account")}
+            >
+              <Settings size={23} />
+            </button>
+            <span className="status-chip">
+              <span className="status-dot" />
+              First-party tracking
+            </span>
+            <button
+              className="icon-button bell-button"
+              aria-label={`Notifications (${unread} unread)`}
+              onClick={() => {
+                setNotifications(!notifications);
+                if (!notifications)
+                  perform(
+                    () => api("/notifications/read", "POST", {}),
+                    "Notifications marked read",
+                    false,
+                  );
+              }}
+            >
+              <Bell size={19} />
+              {unread > 0 && <i />}
+            </button>
+            <button
+              className="avatar small"
+              aria-label="Open account"
+              onClick={() => navigate("account")}
+            >
+              {initials(p.display_name)}
+            </button>
+          </div>
+        </header>
+        {notifications && (
+          <div className="notifications-panel">
+            <h3>Updates that matter</h3>
+            {state.notifications.length ? (
+              state.notifications.slice(0, 8).map((n: any) => (
+                <div key={n.id}>
+                  <span className="status-dot" />
+                  <p>
+                    {n.message}
+                    <small>{new Date(n.created_at).toLocaleString()}</small>
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p className="muted">
+                No notifications yet. Campaign and collaboration updates will
+                appear here.
+              </p>
+            )}
+          </div>
+        )}
+        <main id="main">
+          <div className="page-heading">
+            <div>
+              <span className="eyebrow">
+                {section === "home"
+                  ? `WELCOME BACK, ${p.display_name.toUpperCase()}`
+                  : "YOUR CREATOR COCKPIT"}
+              </span>
+              <h1>{heading[section]?.[0] || "Platform operations"}</h1>
+              <p>{heading[section]?.[1] || "Separate administrator access."}</p>
+            </div>
+            {![
+              "home",
+              "account",
+              "peer-swap",
+              "admin",
+              "settings",
+              "subscriptions",
+              "templates",
+              "automation",
+              "content-library",
+            ].includes(section) && (
+              <button
+                className="button primary"
+                onClick={() => {
+                  setError("");
+                  setModal({ type: "campaign" });
+                }}
+              >
+                <Plus size={17} />
+                {section === "links" ? "Create link" : "New campaign"}
+              </button>
+            )}
+          </div>
+          {state.has_demo && (
+            <div className="demo-banner">
+              <Radio size={18} />
+              <span>
+                <strong>Development sample data is visible.</strong> These are
+                simulated events, not your real subscribers or revenue.
+              </span>
+              <button
+                onClick={() =>
+                  perform(
+                    () => api("/development/sample", "DELETE"),
+                    "Sample traffic cleared",
+                    false,
+                  )
+                }
+              >
+                Clear samples
+              </button>
             </div>
           )}
-        </div>
-        <div style={{borderTop:'1px solid #251012',padding:12,display:'flex',gap:8}}>
-          <input value={chatMsg} onChange={e=>setChatMsg(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendChat()} placeholder="Ask about strategy, creatives, traffic mix..." style={{flex:1,background:'#111',border:'1px solid #382022',borderRadius:5,color:'#fff',padding:'10px 12px',fontSize:10,fontFamily:'Manrope,sans-serif'}}/>
-          <button onClick={sendChat} style={{background:'#d71920',border:0,borderRadius:5,color:'#fff',padding:'0 14px',cursor:'pointer'}}><Send style={{width:14}}/></button>
-        </div>
-      </div>
-      {drawerOpen&&<Drawer title={drawerOpen} close={()=>setDrawerOpen(null)} notify={notify}/>}
-    </div>
-  );
-}
-
-function AssetsPage({websiteUrl,setWebsiteUrl,websiteLoading,websiteResult,websiteError,analyzeWebsite,buildFromSite}:any){
-  return(
-    <div className="workspace">
-      <div className="workspace-head"><div><span>MODEL ASSETS</span><h1>Brand intelligence</h1><p>Scan your creator page to extract brand signals and ad copy hooks.</p></div></div>
-      <div className="website-panel" style={{marginTop:0}}>
-        <div><span>WEBSITE SCANNER</span><h2>Drop your creator URL</h2><p>AI extracts brand positioning, audience signals, and campaign-ready copy from your live page.</p></div>
-        <div><div className="website-form"><input value={websiteUrl} onChange={e=>setWebsiteUrl(e.target.value)} placeholder="https://onlyfans.com/yourname" onKeyDown={e=>e.key==='Enter'&&analyzeWebsite()}/><button onClick={analyzeWebsite} disabled={websiteLoading}>{websiteLoading?<><i className="site-loader"/>Scanning...</>:<><Sparkles/>Analyze</>}</button></div>
-        {websiteError&&<div className="site-error">{websiteError}</div>}
-        {websiteResult&&<div className="site-result">
-          <div><span>BRAND NAME</span><b>{websiteResult.profile?.brand}</b></div>
-          <div><span>POSITIONING</span><b>{websiteResult.profile?.positioning}</b></div>
-          <div><span>VOICE</span><b>{websiteResult.profile?.voice}</b></div>
-          <div><span>TOP CTA</span><b>{websiteResult.profile?.primaryCta}</b></div>
-          {websiteResult.adSuggestions?.map((s:string,i:number)=><div key={i} className="wide"><span>AD HOOK {i+1}</span><b>{s}</b></div>)}
-        </div>}
-        {websiteResult&&<button className="primary" style={{marginTop:12}} onClick={buildFromSite}><WandSparkles/>Build campaign from this site</button>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const BRIEF_ACTIONS=[
-  'Analyze the uploaded asset',
-  'Create variations',
-  'Resize it for placements',
-  'Generate a new suggestion using the uploaded reference',
-];
-
-// Fixed reference examples — real provided images, never resized/cropped into new records,
-// never entered into the resize/variation pipeline. format:"multi-format" is excluded from
-// that pipeline entirely; each individual example uses a distinct source image.
-const EXAMPLE_CREATIVES=[
-  {id:'ex-multi',image:'/examples/multi-format-guide.png',title:'Multi-format campaign example',format:'multi-format',placement:'Story, banner & desktop reference',source:'uploaded',allowDuplicate:false},
-  {id:'ex-square',image:'/examples/model-square.png',title:'Square Ad — 1:1',format:'square',placement:'Feed — Instagram, Facebook',source:'uploaded',allowDuplicate:false},
-  {id:'ex-story',image:'/examples/model-story.png',title:'Story Ad — 9:16',format:'story',placement:'Stories & Reels',source:'uploaded',allowDuplicate:false},
-  {id:'ex-landscape',image:'/examples/model-landscape.png',title:'Landscape Ad — 1.91:1',format:'landscape',placement:'Feed link ads, display',source:'uploaded',allowDuplicate:false},
-] as const;
-
-function placementFor(w:number,h:number){
-  if(!w||!h)return null;
-  const r=w/h;
-  if(Math.abs(r-1)<.08)return 'Feed — Instagram, Facebook';
-  if(r<.75)return 'Stories & Reels';
-  if(r>1.5)return 'Feed link ads, display';
-  return 'Feed placements';
-}
-
-function CreativesPage({assets,submitBrief,upload,fileRef,onLaunch}:any){
-  const[briefOpen,setBriefOpen]=useState(false);
-  const[briefText,setBriefText]=useState('');
-  const[briefAction,setBriefAction]=useState(BRIEF_ACTIONS[0]);
-  const list=assets||[];
-  const images=list.filter((a:any)=>a.mime?.startsWith('image/'));
-  const briefs=list.filter((a:any)=>a.mime==='text/brief');
-
-  return(
-    <div className="workspace">
-      <div className="workspace-head"><div><span>CREATIVES</span><h1>Creatives</h1></div>
-        <div style={{display:'flex',gap:8}}>
-          <button onClick={()=>fileRef?.current?.click()}><Upload style={{width:14}}/>Upload creative</button>
-          <button onClick={()=>setBriefOpen(v=>!v)}><WandSparkles style={{width:14}}/>Create from brief</button>
-          {onLaunch&&<button className="primary" onClick={onLaunch}><Rocket style={{width:14}}/>Fund &amp; launch</button>}
-        </div>
-      </div>
-
-      {briefOpen&&<div className="brief-panel">
-        <textarea value={briefText} onChange={e=>setBriefText(e.target.value)} rows={4} placeholder=""/>
-        <div className="brief-controls">
-          <select value={briefAction} onChange={e=>setBriefAction(e.target.value)}>
-            {BRIEF_ACTIONS.map(a=><option key={a}>{a}</option>)}
-          </select>
-          <button className="primary" disabled={!briefText.trim()} onClick={()=>{submitBrief(briefText,briefAction);setBriefText('');setBriefOpen(false);}}>Submit</button>
-        </div>
-      </div>}
-
-      <section className="example-section">
-        <h3>FORMAT EXAMPLES</h3>
-        <div className="example-hero">
-          <img src={EXAMPLE_CREATIVES[0].image} alt={EXAMPLE_CREATIVES[0].title} style={{objectFit:'contain'}}/>
-          <div className="example-hero-meta">
-            <b>{EXAMPLE_CREATIVES[0].title}</b>
-            <span>{EXAMPLE_CREATIVES[0].placement}</span>
-            <span>Source: Reference</span>
-            <em>Ready</em>
-          </div>
-        </div>
-        <div className="asset-grid">
-          {EXAMPLE_CREATIVES.slice(1).map(ex=>(
-            <div key={ex.id} className="asset-card">
-              <div className="asset-thumb"><img src={ex.image} alt={ex.title} style={{objectFit:'contain'}}/></div>
-              <div className="asset-meta">
-                <b>{ex.title}</b>
-                <span>{ex.placement}</span>
-                <span>Source: Reference</span>
-                <em>Ready</em>
+          {error && !modal && (
+            <div className="inline-error global-error" role="alert">
+              {error}
+              <button
+                className="icon-button"
+                onClick={() => setError("")}
+                aria-label="Dismiss error"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          )}
+          {["home", "traffic", "campaigns", "analytics"].includes(section) && (
+            <div className="range-bar">
+              <div className="segmented" aria-label="Date range">
+                {[
+                  ["today", "Today"],
+                  ["7", "7 days"],
+                  ["30", "30 days"],
+                  ["90", "90 days"],
+                  ["custom", "Custom"],
+                ].map(([key, label]) => (
+                  <button
+                    key={key}
+                    className={range === key ? "selected" : ""}
+                    onClick={() => setRange(key)}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
+              {range === "custom" && (
+                <div className="custom-range">
+                  <input
+                    aria-label="Range start"
+                    type="date"
+                    value={custom.from}
+                    max={custom.to}
+                    onChange={(e) =>
+                      setCustom({ ...custom, from: e.target.value })
+                    }
+                  />
+                  <span>to</span>
+                  <input
+                    aria-label="Range end"
+                    type="date"
+                    value={custom.to}
+                    min={custom.from}
+                    onChange={(e) =>
+                      setCustom({ ...custom, to: e.target.value })
+                    }
+                  />
+                </div>
+              )}
+              <span className="range-note">
+                <span className="status-dot" />
+                Recorded data ·{" "}
+                {model === "last-touch" ? "last touch" : "first touch"}
+              </span>
             </div>
-          ))}
-        </div>
-      </section>
-
-      {images.length===0&&briefs.length===0&&!briefOpen&&<div className="creatives-empty">
-        <ImageIcon/>
-        <b>Your creatives will appear here</b>
-        <p>Upload an existing asset or describe what you want Naughty Pilot to create.</p>
-        <div>
-          <button className="primary" onClick={()=>fileRef?.current?.click()}>Upload creative</button>
-          <button onClick={()=>setBriefOpen(true)}>Create from brief</button>
-        </div>
-      </div>}
-
-      {images.length>0&&<section>
-        <h3>YOUR CREATIVES</h3>
-        <div className="asset-grid">
-          {images.map((a:any)=>{
-            const isResize=a.source==='Resize';
-            const label=isResize?a.name.replace(/^.*—\s*/,''):null;
-            const placement=isResize?null:placementFor(a.width,a.height);
-            return(
-            <div key={a.id} className="asset-card">
-              <div className="asset-thumb"><img src={a.url} alt={a.name}/></div>
-              <div className="asset-meta">
-                <b>{label||(placement?`${a.width}×${a.height}`:a.name)}</b>
-                <span>{isResize?(placementFor(a.width,a.height)||'—'):(placement||'—')}</span>
-                <span>Source: {isResize?'Resize':'Upload'}</span>
-                <em className={/^Failed/.test(a.status)?'bad':''}>{a.status}</em>
+          )}
+          {section === "home" && (
+            <Dashboard
+              state={state}
+              subscribers={subscribers}
+              navigate={navigate}
+              create={(preset: any = {}) =>
+                setModal({ type: "campaign", ...preset })
+              }
+              selectSource={(name: string) => {
+                setSource(name);
+                navigate("campaigns");
+              }}
+              openCampaign={(campaign: any) =>
+                setModal({ type: "campaign-detail", campaign })
+              }
+              openPeer={(peer: any) => setModal({ type: "swap", peer })}
+              openActivity={() => setModal({ type: "activity" })}
+              openTemplates={() => setModal({ type: "templates" })}
+              GrowthChart={GrowthChart}
+            />
+          )}
+          {section === "traffic" && (
+            <>
+              <div className="mini-metrics">
+                <Metric
+                  label="Unique visitors"
+                  value={num(m.visitors)}
+                  detail="Anonymous first-party sessions"
+                />
+                <Metric
+                  label="Attributed subscribers"
+                  value={num(m.conversions)}
+                  detail="Creator-provided reports"
+                />
+                <Metric
+                  label="Revenue per visitor"
+                  value={money(m.visitors ? m.revenue / m.visitors : 0)}
+                  detail="Creator-reported · USD"
+                />
               </div>
-            </div>
-          );})}
-        </div>
-      </section>}
-
-      {briefs.length>0&&<section>
-        <h3>CREATIVE BRIEFS</h3>
-        <div className="asset-grid">
-          {briefs.map((a:any)=>(
-            <div key={a.id} className="asset-card">
-              <div className="asset-thumb"><div className="asset-brief-body">{a.brief}</div></div>
-              <div className="asset-meta">
-                <b>{a.action}</b>
-                <span>Brief</span>
-                <span>Source: Create from brief</span>
-                {a.resultText&&<p className="asset-result">{a.resultText}</p>}
-                <em className={/^Failed/.test(a.status)?'bad':''}>{a.status}</em>
+              <section className="panel">
+                <div className="panel-heading">
+                  <div>
+                    <h2>Source leaderboard</h2>
+                    <p>
+                      Conversion = attributed subscriber reports ÷ unique
+                      visitors
+                    </p>
+                  </div>
+                  <Badge>{m.rows.length} sources</Badge>
+                </div>
+                {m.rows.length ? (
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Traffic source</th>
+                          <th>Traffic</th>
+                          <th>Visitors</th>
+                          <th>Outbound clicks</th>
+                          <th>Subscribers</th>
+                          <th>Conversion</th>
+                          <th>Revenue</th>
+                          <th>Rev / visitor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {m.rows.map((r: any) => (
+                          <tr key={r.source}>
+                            <td>
+                              <button
+                                className="table-link"
+                                onClick={() => {
+                                  setSource(r.source);
+                                  navigate("campaigns");
+                                }}
+                              >
+                                <span className="source-symbol">
+                                  {r.source[0]}
+                                </span>
+                                {r.source}
+                                <ArrowUpRight size={14} />
+                              </button>
+                            </td>
+                            <td>{num(r.traffic)}</td>
+                            <td>{num(r.visitors)}</td>
+                            <td>{num(r.clicks)}</td>
+                            <td>{r.subscribers}</td>
+                            <td>{pct(r.conversionRate)}</td>
+                            <td>{money(r.revenue)}</td>
+                            <td>{money(r.rpv)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <Empty
+                    icon={Activity}
+                    title="See where your audience comes from"
+                    description="Your source leaderboard fills as people click tracked links or visit your verified website."
+                    action={
+                      <button
+                        className="button primary"
+                        onClick={() => setModal({ type: "campaign" })}
+                      >
+                        <Plus size={16} />
+                        Create a tracked link
+                      </button>
+                    }
+                  />
+                )}
+              </section>
+              <div className="info">
+                <CircleHelp size={19} />
+                <span>
+                  Clicks and page visits are separate events. Unique visitors
+                  are anonymous sessions, not identified people. Country is
+                  shown only when legitimately available.
+                </span>
               </div>
+            </>
+          )}
+          {section === "campaigns" && (
+            <>
+              <div className="toolbar">
+                <div className="filter-control">
+                  <SlidersHorizontal size={16} />
+                  <select
+                    aria-label="Campaign source filter"
+                    value={source}
+                    onChange={(e) => setSource(e.target.value)}
+                  >
+                    <option>All sources</option>
+                    {state.sources.map((v: string) => (
+                      <option key={v}>{v}</option>
+                    ))}
+                  </select>
+                </div>
+                <span className="muted">
+                  {filteredCampaigns.length} campaign
+                  {filteredCampaigns.length !== 1 ? "s" : ""}
+                </span>
+                <button
+                  className="button"
+                  disabled={compare.length < 2}
+                  onClick={() => setModal({ type: "compare" })}
+                >
+                  <BarChart3 size={16} />
+                  Compare ({compare.length})
+                </button>
+              </div>
+              {filteredCampaigns.length ? (
+                <div className="campaign-grid">
+                  {filteredCampaigns.map((c: any) => (
+                    <article className="panel campaign-card" key={c.id}>
+                      <div className="campaign-top">
+                        <span className="source-symbol">{c.source[0]}</span>
+                        <Badge tone="green">{c.status}</Badge>
+                        {c.demo && <Badge tone="accent">Sample</Badge>}
+                        <label className="compare-check">
+                          <input
+                            type="checkbox"
+                            aria-label={`Compare ${c.name}`}
+                            checked={compare.includes(c.id)}
+                            onChange={(e) =>
+                              setCompare(
+                                e.target.checked
+                                  ? [...compare, c.id].slice(-4)
+                                  : compare.filter((id) => id !== c.id),
+                              )
+                            }
+                          />
+                        </label>
+                      </div>
+                      <h2>{c.name}</h2>
+                      <p>
+                        {c.source} ·{" "}
+                        {new Date(c.start_date).toLocaleDateString()}
+                      </p>
+                      <div className="campaign-numbers">
+                        <span>
+                          <strong>{num(c.metrics.visitors)}</strong>Visitors
+                        </span>
+                        <span>
+                          <strong>{num(c.metrics.conversions)}</strong>
+                          Subscribers
+                        </span>
+                        <span>
+                          <strong>{money(c.metrics.revenue)}</strong>Revenue
+                        </span>
+                      </div>
+                      <footer>
+                        <span>{pct(c.metrics.conversionRate)} conversion</span>
+                        <button
+                          className="text-button"
+                          onClick={() =>
+                            setModal({ type: "campaign-detail", campaign: c })
+                          }
+                        >
+                          View results
+                          <ArrowUpRight size={15} />
+                        </button>
+                      </footer>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <section className="panel">
+                  <Empty
+                    icon={Megaphone}
+                    title={
+                      source === "All sources"
+                        ? "Your first campaign starts here"
+                        : "No campaigns for this source"
+                    }
+                    description="Give your promotion a name, choose a source, and get a tracking link automatically."
+                    action={
+                      <button
+                        className="button primary"
+                        onClick={() => setModal({ type: "campaign" })}
+                      >
+                        <Plus size={16} />
+                        Create campaign
+                      </button>
+                    }
+                  />
+                </section>
+              )}
+            </>
+          )}
+          {section === "links" && (
+            <>
+              <div className="info">
+                <LinkIcon size={19} />
+                <span>
+                  Each link belongs to a campaign and keeps its source through
+                  the funnel. Share it wherever you promote.
+                </span>
+              </div>
+              <section className="panel">
+                <div className="panel-heading">
+                  <div>
+                    <h2>Tracked links</h2>
+                    <p>
+                      {state.links.length} links · anonymous first-party
+                      tracking
+                    </p>
+                  </div>
+                </div>
+                {state.links.length ? (
+                  <div className="links-list">
+                    {state.links.map((l: any) => (
+                      <article key={l.id}>
+                        <div className="link-details">
+                          <div>
+                            <h3>{l.name}</h3>
+                            <Badge
+                              tone={l.status === "active" ? "green" : "neutral"}
+                            >
+                              {l.status}
+                            </Badge>
+                            {l.demo && <Badge tone="accent">Sample</Badge>}
+                          </div>
+                          <code>{l.url}</code>
+                          <small>
+                            {l.source} · {num(l.click_count)} clicks ·{" "}
+                            {num(l.unique_click_count)} unique ·{" "}
+                            {l.conversion_count} reports · {money(l.revenue)}
+                          </small>
+                          <span className="destination-label">
+                            <ArrowUpRight size={12} />
+                            {l.destination}
+                          </span>
+                        </div>
+                        <div className="link-actions">
+                          <button
+                            className="button"
+                            onClick={() => copy(l.url)}
+                            aria-label={`Copy ${l.name}`}
+                          >
+                            <Copy size={15} />
+                            Copy
+                          </button>
+                          <button
+                            className="icon-button"
+                            onClick={() => showQR(l)}
+                            aria-label={`QR code for ${l.name}`}
+                          >
+                            <QrCode size={19} />
+                          </button>
+                          <button
+                            className="text-button"
+                            onClick={() =>
+                              perform(
+                                () =>
+                                  api("/links/" + l.id, "PATCH", {
+                                    status:
+                                      l.status === "active"
+                                        ? "paused"
+                                        : "active",
+                                  }),
+                                l.status === "active"
+                                  ? "Link paused"
+                                  : "Link resumed",
+                                false,
+                              )
+                            }
+                          >
+                            {l.status === "active" ? "Pause" : "Resume"}
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <Empty
+                    icon={LinkIcon}
+                    title="One link. A clearer picture."
+                    description="Create your first tracked link and use it in your next post, story, email, or promotion."
+                    action={
+                      <button
+                        className="button primary"
+                        onClick={() => setModal({ type: "campaign" })}
+                      >
+                        <Plus size={16} />
+                        Create link
+                      </button>
+                    }
+                  />
+                )}
+              </section>
+            </>
+          )}
+          {section === "peer-swap" && (
+            <>
+              <div className="peer-header">
+                <div className="info">
+                  <Users size={20} />
+                  <span>
+                    Mutual consent. Clear expectations. Measured outcomes. Your
+                    subscriber identities are never shared.
+                  </span>
+                </div>
+                <button className="button" onClick={() => navigate("account")}>
+                  <UserRound size={16} />
+                  {p.discovery
+                    ? "Edit discovery profile"
+                    : "Opt into discovery"}
+                </button>
+              </div>
+              <section className="panel swap-panel">
+                <div className="panel-heading">
+                  <div>
+                    <h2>Your collaborations</h2>
+                    <p>Requests, active swaps, and measured results</p>
+                  </div>
+                  <Badge>{activeSwaps.length} active</Badge>
+                </div>
+                {state.swaps.length ? (
+                  <div className="swap-list">
+                    {state.swaps.map((s: any) => (
+                      <div key={s.id} className="swap-item">
+                        <span className="avatar">
+                          {initials(
+                            s.partner?.display_name || "Deleted creator",
+                          )}
+                        </span>
+                        <div className="swap-main">
+                          <h3>
+                            {s.partner?.display_name || "Deleted creator"}{" "}
+                            {s.demo && <Badge tone="accent">Sample</Badge>}
+                          </h3>
+                          <p>
+                            {s.type} · {s.platform} · {s.duration} days ·{" "}
+                            {new Date(s.start_date).toLocaleDateString()}
+                          </p>
+                          {s.note && <small>{s.note}</small>}
+                        </div>
+                        <Badge
+                          tone={
+                            s.status === "accepted"
+                              ? "green"
+                              : s.status === "pending"
+                                ? "accent"
+                                : "neutral"
+                          }
+                        >
+                          {s.status}
+                        </Badge>
+                        <div className="swap-actions">
+                          {["pending", "countered"].includes(s.status) &&
+                            (s.status === "countered"
+                              ? s.from_id === user.id
+                              : s.to_id === user.id) && (
+                              <>
+                                <button
+                                  className="button primary small-button"
+                                  onClick={() =>
+                                    perform(
+                                      () =>
+                                        api(`/swaps/${s.id}/respond`, "POST", {
+                                          action: "accept",
+                                        }),
+                                      "Swap accepted. Both tracking links are ready.",
+                                    )
+                                  }
+                                  disabled={busy}
+                                >
+                                  Accept
+                                </button>
+                                <button
+                                  className="button small-button"
+                                  onClick={() =>
+                                    perform(
+                                      () =>
+                                        api(`/swaps/${s.id}/respond`, "POST", {
+                                          action: "decline",
+                                        }),
+                                      "Swap declined",
+                                    )
+                                  }
+                                  disabled={busy}
+                                >
+                                  Decline
+                                </button>
+                                {s.status === "pending" && (
+                                  <button
+                                    className="text-button"
+                                    onClick={() =>
+                                      setModal({ type: "counter", swap: s })
+                                    }
+                                  >
+                                    Counter
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          {s.demo &&
+                            s.status === "pending" &&
+                            s.from_id === user.id && (
+                              <button
+                                className="button small-button"
+                                onClick={() =>
+                                  perform(
+                                    () =>
+                                      api(
+                                        `/development/swaps/${s.id}/accept`,
+                                        "POST",
+                                        {},
+                                      ),
+                                    "Sample partner acceptance simulated",
+                                  )
+                                }
+                                disabled={busy}
+                              >
+                                Simulate acceptance
+                              </button>
+                            )}
+                          {["accepted", "completed"].includes(s.status) && (
+                            <button
+                              className="button small-button"
+                              onClick={() =>
+                                setModal({ type: "swap-result", swap: s })
+                              }
+                            >
+                              Results
+                              <ArrowUpRight size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="compact-empty">
+                    <Users size={24} />
+                    <p>
+                      No collaborations yet. Find a creator below and propose
+                      your first swap.
+                    </p>
+                  </div>
+                )}
+              </section>
+              <div className="section-heading">
+                <div>
+                  <h2>Find your next growth partner.</h2>
+                  <p>
+                    Matches use self-reported niche and audience size. No
+                    invented performance scores.
+                  </p>
+                </div>
+                <Badge>{peers.length} creators</Badge>
+              </div>
+              <div className="peer-filters">
+                <select
+                  aria-label="Niche filter"
+                  value={peerFilters.niche}
+                  onChange={(e) =>
+                    setPeerFilters({ ...peerFilters, niche: e.target.value })
+                  }
+                >
+                  <option>All niches</option>
+                  {[...new Set(state.peers.map((p: any) => p.niche))].map(
+                    (v: any) => (
+                      <option key={v}>{v}</option>
+                    ),
+                  )}
+                </select>
+                <select
+                  aria-label="Audience filter"
+                  value={peerFilters.audience}
+                  onChange={(e) =>
+                    setPeerFilters({ ...peerFilters, audience: e.target.value })
+                  }
+                >
+                  {[
+                    "All audiences",
+                    "Under 1k",
+                    "1k–10k",
+                    "10k–50k",
+                    "50k+",
+                  ].map((v) => (
+                    <option key={v}>{v}</option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Peer platform filter"
+                  value={peerFilters.platform}
+                  onChange={(e) =>
+                    setPeerFilters({ ...peerFilters, platform: e.target.value })
+                  }
+                >
+                  <option>All platforms</option>
+                  {[...new Set(state.peers.map((p: any) => p.platform))].map(
+                    (v: any) => (
+                      <option key={v}>{v}</option>
+                    ),
+                  )}
+                </select>
+                <select
+                  aria-label="Promotion type filter"
+                  value={peerFilters.promotion}
+                  onChange={(e) =>
+                    setPeerFilters({
+                      ...peerFilters,
+                      promotion: e.target.value,
+                    })
+                  }
+                >
+                  <option>All promotions</option>
+                  {state.swap_types.map((v: string) => (
+                    <option key={v}>{v}</option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Traffic range filter"
+                  value={peerFilters.traffic}
+                  onChange={(e) =>
+                    setPeerFilters({ ...peerFilters, traffic: e.target.value })
+                  }
+                >
+                  {[
+                    "All traffic ranges",
+                    "No recorded traffic",
+                    "Under 100 visits",
+                    "100–1k visits",
+                    "1k–10k visits",
+                    "10k+ visits",
+                  ].map((v) => (
+                    <option key={v}>{v}</option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Availability filter"
+                  value={peerFilters.availability}
+                  onChange={(e) =>
+                    setPeerFilters({
+                      ...peerFilters,
+                      availability: e.target.value,
+                    })
+                  }
+                >
+                  <option>Available</option>
+                  <option>Any availability</option>
+                </select>
+                <input
+                  aria-label="Country or region filter"
+                  value={peerFilters.region}
+                  onChange={(e) =>
+                    setPeerFilters({ ...peerFilters, region: e.target.value })
+                  }
+                  placeholder="Country / region"
+                />
+              </div>
+              {peers.length ? (
+                <div className="peer-grid">
+                  {peers.map((peer: any) => (
+                    <article className="panel peer-card" key={peer.id}>
+                      <div className="peer-card-top">
+                        <span className="avatar large">
+                          {initials(peer.display_name)}
+                        </span>
+                        <Badge
+                          tone={
+                            peer.match === "Excellent Match"
+                              ? "green"
+                              : "neutral"
+                          }
+                        >
+                          {peer.match}
+                        </Badge>
+                      </div>
+                      <h2>
+                        {peer.display_name}
+                        {peer.demo && <Badge tone="accent">Sample</Badge>}
+                      </h2>
+                      <p>
+                        {peer.niche} · {peer.platform}
+                      </p>
+                      <div className="peer-stats">
+                        <span>
+                          <strong>{peer.audience_tier}</strong>Audience ·
+                          self-reported
+                        </span>
+                        <span>
+                          <strong>{peer.history}</strong>Completed swaps
+                        </span>
+                      </div>
+                      <div className="peer-tags">
+                        {peer.promotion_types.map((v: string) => (
+                          <Badge key={v}>{v}</Badge>
+                        ))}
+                      </div>
+                      <small className="peer-disclaimer">
+                        Traffic: {peer.traffic_tier.toLowerCase()} (30 days)
+                        <br />
+                        Engagement: not verified · Reliability:{" "}
+                        {peer.reliability.toLowerCase()}
+                      </small>
+                      <div className="peer-card-footer">
+                        <button
+                          className="button primary"
+                          onClick={() => setModal({ type: "swap", peer })}
+                          disabled={!peer.availability}
+                        >
+                          <Send size={15} />
+                          Propose swap
+                        </button>
+                        <button
+                          className="icon-button"
+                          aria-label={`Safety controls for ${peer.display_name}`}
+                          onClick={() =>
+                            setModal({ type: "peer-safety", peer })
+                          }
+                        >
+                          <MoreHorizontal size={20} />
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <section className="panel">
+                  <Empty
+                    icon={Users}
+                    title="Room for the right connection"
+                    description="No opted-in creators match these filters yet. Invite another creator to sign up, or explore labeled development samples in Account."
+                  />
+                </section>
+              )}
+            </>
+          )}
+          {section === "analytics" && (
+            <>
+              <section className="panel attribution-panel">
+                <div>
+                  <span className="eyebrow">UNDERSTANDABLE ATTRIBUTION</span>
+                  <h2>Credit where the evidence points.</h2>
+                  <p>
+                    We connect anonymous tracked-link sessions to the conversion
+                    reports you record. We don’t claim access to subscriber data
+                    your platform doesn’t provide.
+                  </p>
+                </div>
+                <Field label="Attribution model">
+                  <select
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                  >
+                    <option value="last-touch">
+                      Last tracked touch (default)
+                    </option>
+                    <option value="first-touch">First tracked touch</option>
+                  </select>
+                </Field>
+              </section>
+              <div className="mini-metrics">
+                <Metric
+                  label="Attributed conversions"
+                  value={m.conversions}
+                  detail="Creator-reported · linked campaign"
+                />
+                <Metric
+                  label="Uncertain reports"
+                  value={m.unverified}
+                  detail="Not credited to any campaign"
+                />
+                <Metric
+                  label="Campaign revenue"
+                  value={money(m.revenue)}
+                  detail="Creator-provided amounts · USD"
+                />
+              </div>
+              <div className="toolbar">
+                <p className="muted">
+                  Conversions are not inferred from clicks.
+                </p>
+                <button
+                  className="button primary"
+                  onClick={() => setModal({ type: "conversion" })}
+                >
+                  <Plus size={16} />
+                  Record conversion
+                </button>
+              </div>
+              <section className="panel">
+                <div className="panel-heading">
+                  <div>
+                    <h2>Your conversion funnel</h2>
+                    <p>
+                      Events are measured separately; this is not a complete
+                      platform funnel.
+                    </p>
+                  </div>
+                </div>
+                <div className="funnel">
+                  {[
+                    ["Unique visitors", m.visitors],
+                    ["Outbound clicks", m.clicks],
+                    ["Attributed subscriber reports", m.conversions],
+                  ].map(([label, value], i) => (
+                    <div key={String(label)}>
+                      <span>0{i + 1}</span>
+                      <p>{label}</p>
+                      <strong>{num(value)}</strong>
+                      <div
+                        style={{
+                          width: `${Math.max(2, Math.min(100, (Number(value) / Math.max(1, m.visitors)) * 100))}%`,
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+              <section className="panel">
+                <div className="panel-heading">
+                  <div>
+                    <h2>Recent tracking events</h2>
+                    <p>Anonymous sessions · no subscriber identities</p>
+                  </div>
+                  <button
+                    className="icon-button"
+                    aria-label="Refresh tracking events"
+                    onClick={() => refresh().catch((e) => setError(e.message))}
+                  >
+                    <RefreshCw size={17} />
+                  </button>
+                </div>
+                {state.events.length ? (
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Event</th>
+                          <th>Source</th>
+                          <th>Device</th>
+                          <th>Country</th>
+                          <th>Recorded</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {state.events.slice(0, 15).map((e: any) => (
+                          <tr key={e.id}>
+                            <td>
+                              {e.type.replaceAll("_", " ")}{" "}
+                              {e.demo && <Badge tone="accent">Sample</Badge>}
+                            </td>
+                            <td>{e.source_id || "Direct traffic"}</td>
+                            <td>{e.device_category || "Unknown"}</td>
+                            <td>{e.country || "Not available"}</td>
+                            <td>{new Date(e.timestamp).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <Empty
+                    icon={Radio}
+                    title="Listening for your first event"
+                    description="Use a tracked link or install tracking on your verified website."
+                  />
+                )}
+              </section>
+            </>
+          )}
+          {["templates", "content-library", "automation"].includes(section) && (
+            <WorkspaceScreen
+              key={section}
+              kind={
+                section === "templates"
+                  ? "template"
+                  : section === "content-library"
+                    ? "content"
+                    : "schedule"
+              }
+              state={state}
+              api={api}
+              perform={perform}
+              busy={busy}
+              navigate={navigate}
+              create={(preset: any) =>
+                setModal({ type: "campaign", ...preset })
+              }
+            />
+          )}
+          {section === "subscriptions" && (
+            <SubscriberConnections
+              state={state}
+              busy={busy}
+              perform={perform}
+              setModal={setModal}
+            />
+          )}
+          {section === "settings" && (
+            <div className="np-settings-view">
+              <Account
+                state={state}
+                busy={busy}
+                perform={perform}
+                api={api}
+                copy={copy}
+                setModal={setModal}
+                logout={() =>
+                  perform(
+                    () => api("/auth/logout", "POST", {}),
+                    "Signed out",
+                    true,
+                    false,
+                  ).then(bootup)
+                }
+              />
             </div>
-          ))}
-        </div>
-      </section>}
-
-      <input ref={fileRef} type="file" accept="image/*" multiple style={{display:'none'}} onChange={e=>upload(e.target.files)}/>
-    </div>
-  );
-}
-
-// Compact numeric field with direct typing + ± steppers. No sliders.
-function NumField({label,value,onChange,step=1,min,max,prefix,suffix,width}:any){
-  const clamp=(v:number)=>{let n=v;if(typeof min==='number')n=Math.max(min,n);if(typeof max==='number')n=Math.min(max,n);return n;};
-  const invalid=(typeof min==='number'&&value<min)||(typeof max==='number'&&value>max)||!Number.isFinite(value);
-  return(
-    <label className="numfield" style={width?{width}:undefined}>
-      <span>{label}</span>
-      <div className={`numfield-input${invalid?' bad':''}`}>
-        {prefix&&<em>{prefix}</em>}
-        <input type="number" value={Number.isFinite(value)?value:''} step={step} min={min} max={max}
-          onChange={e=>onChange(clamp(e.target.value===''?0:parseFloat(e.target.value)))}/>
-        {suffix&&<em>{suffix}</em>}
-        <div className="steppers">
-          <button type="button" onClick={()=>onChange(clamp((value||0)+step))}>+</button>
-          <button type="button" onClick={()=>onChange(clamp((value||0)-step))}>−</button>
-        </div>
+          )}
+          {section === "account" && (
+            <Account
+              state={state}
+              busy={busy}
+              perform={perform}
+              api={api}
+              copy={copy}
+              setModal={setModal}
+              logout={() => {
+                setUser(null);
+                setState(null);
+                navigate("home");
+              }}
+            />
+          )}
+          {section === "admin" && <Admin />}
+          <footer className="page-footer">
+            <span>Naughty Pilot · Your creator growth cockpit</span>
+            <span>
+              USD ·{" "}
+              {state.development
+                ? "Development environment"
+                : "Self-hosted environment"}
+              <button
+                className="text-button"
+                onClick={() => setModal({ type: "privacy" })}
+              >
+                Privacy
+              </button>
+            </span>
+          </footer>
+        </main>
       </div>
-    </label>
-  );
-}
-
-function AssumptionsPanel({assumptions:a,setAssumptions,onReset}:any){
-  const set=(k:string,v:any)=>setAssumptions((prev:CampaignAssumptions)=>({...prev,[k]:v}));
-  return(
-    <section className="assump-panel">
-      <div className="panel-head"><h3>CAMPAIGN ASSUMPTIONS</h3><button className="ghost-btn" onClick={onReset}><RotateCw style={{width:11}}/>Reset assumptions</button></div>
-      <div className="assump-grid">
-        <NumField label="Total test budget" prefix="$" value={a.totalBudget} step={50} min={0} onChange={(v:number)=>set('totalBudget',v)}/>
-        <NumField label="Subscription price" prefix="$" value={a.subscriptionPrice} step={1} min={0} onChange={(v:number)=>set('subscriptionPrice',v)}/>
-        <NumField label="Subscriber target" value={a.targetSubscribers} step={10} min={0} onChange={(v:number)=>set('targetSubscribers',v)}/>
-        <NumField label="Campaign duration" suffix="days" value={a.durationDays} step={1} min={1} onChange={(v:number)=>set('durationDays',v)}/>
-        <NumField label="Refund / cancel rate" suffix="%" value={a.refundRatePct} step={1} min={0} max={100} onChange={(v:number)=>set('refundRatePct',v)}/>
-        <NumField label="Forecast confidence" suffix="%" value={a.confidencePct} step={5} min={0} max={100} onChange={(v:number)=>set('confidencePct',v)}/>
-        <label className="numfield"><span>Audience</span><select value={a.audience} onChange={e=>set('audience',e.target.value)}>{['All adult audiences','Men','Women','Custom segment'].map(o=><option key={o}>{o}</option>)}</select></label>
-        <label className="numfield"><span>Country</span><select value={a.country} onChange={e=>set('country',e.target.value)}>{['United States','United Kingdom','Canada','Australia','Global'].map(o=><option key={o}>{o}</option>)}</select></label>
-        <NumField label="Minimum age" value={a.minAge} step={1} min={18} max={99} onChange={(v:number)=>set('minAge',Math.max(18,v))}/>
-        <label className="numfield"><span>Objective</span><select value={a.objective} onChange={e=>set('objective',e.target.value)}>{['Subscriber growth','Trial signups','Content sales','Retargeting'].map(o=><option key={o}>{o}</option>)}</select></label>
-      </div>
-      {a.minAge<18&&<div className="assump-warn">Minimum age must be 18 or higher.</div>}
-    </section>
-  );
-}
-
-function TrafficTable({sources,setSources,forecast,notify}:any){
-  const setRow=(id:string,patch:any)=>setSources((prev:TrafficSourceAssumption[])=>prev.map(s=>s.id===id?{...s,...patch}:s));
-  const valid=forecast.allocationValid;
-  const diff=+(forecast.allocationTotalPct-100).toFixed(1);
-  const fmap:Record<string,any>=Object.fromEntries(forecast.perSource.map((f:any)=>[f.id,f]));
-  return(
-    <section className="traffic-table-wrap">
-      <div className="panel-head"><h3>TRAFFIC SOURCES</h3>
-        <button className="ghost-btn" disabled={valid} onClick={()=>{setSources(normalizeAllocations(sources));notify('Allocations normalized to 100%.');}}><SlidersHorizontal style={{width:11}}/>Normalize to 100%</button>
-      </div>
-      <div className="tsrc-table">
-        <div className="tsrc-row tsrc-head"><span>On</span><span>Source</span><span>Alloc %</span><span>CPC $</span><span>Click→LP %</span><span>LP→Paid %</span><span>± %</span><span>Net conv.</span></div>
-        {sources.map((s:TrafficSourceAssumption)=>{
-          const f=fmap[s.id];
-          return(
-          <div key={s.id} className={`tsrc-row${s.enabled?'':' off'}`}>
-            <button className={`switch ${s.enabled?'on':''}`} onClick={()=>setRow(s.id,{enabled:!s.enabled})}><i/></button>
-            <span className="tsrc-name">{s.name}{s.notes&&<small>{s.notes}</small>}</span>
-            <input type="number" value={s.allocationPct} step={1} min={0} max={100} onChange={e=>setRow(s.id,{allocationPct:e.target.value===''?0:parseFloat(e.target.value)})}/>
-            <input type="number" value={s.cpc} step={0.01} min={0} onChange={e=>setRow(s.id,{cpc:e.target.value===''?0:parseFloat(e.target.value)})}/>
-            <input type="number" value={s.clickToLandingPct} step={1} min={0} max={100} onChange={e=>setRow(s.id,{clickToLandingPct:e.target.value===''?0:parseFloat(e.target.value)})}/>
-            <input type="number" value={s.landingToPaidPct} step={0.1} min={0} max={100} onChange={e=>setRow(s.id,{landingToPaidPct:e.target.value===''?0:parseFloat(e.target.value)})}/>
-            <input type="number" value={s.uncertaintyPct} step={1} min={0} max={100} onChange={e=>setRow(s.id,{uncertaintyPct:e.target.value===''?0:parseFloat(e.target.value)})}/>
-            <b className="tsrc-net">{s.enabled&&f?Math.round(f.netConversions):'—'}</b>
-          </div>
-        );})}
-      </div>
-      <div className={`alloc-total${valid?' ok':' bad'}`}>
-        <span>Enabled allocation total</span>
-        <b>{forecast.allocationTotalPct.toFixed(1)}%</b>
-        {!valid&&<em>{diff>0?`${diff}% over`:`${Math.abs(diff)}% under`} — normalize to 100% to generate a final forecast.</em>}
-      </div>
-    </section>
-  );
-}
-
-function ForecastCard({forecast,assumptions}:any){
-  const[open,setOpen]=useState(false);
-  const f=forecast;
-  const ranked=[...f.perSource].sort((a:any,b:any)=>b.netConversions-a.netConversions);
-  if(f.totalNetConversions<=0)return(
-    <section className="forecast-empty">Complete the campaign assumptions to generate a forecast.</section>
-  );
-  const money=(n:number)=>`$${Math.round(n).toLocaleString()}`;
-  return(
-    <section className="forecast-out">
-      <div className="forecast-primary">
-        <div className="fc-mid">
-          <span>MODELED MIDPOINT</span>
-          <strong>{f.midpoint}</strong>
-          <p>net paid subscribers</p>
-          <p className="fc-range">Planning range <b>{f.low}–{f.high}</b></p>
-          {!f.allocationValid&&<p className="fc-warn">Allocations are not at 100% — this is a partial estimate.</p>}
-        </div>
-        <div className="fc-metrics">
-          {[['Est. clicks',Math.round(f.totalClicks).toLocaleString()],['Landing visits',Math.round(f.totalLandingVisits).toLocaleString()],
-            ['Net paid conv.',f.midpoint.toLocaleString()],['Modeled revenue',money(f.totalRevenue)],
-            ['Visit → paid',`${f.visitToPaidPct.toFixed(2)}%`],['ROAS',`${f.roas.toFixed(2)}x`],
-            ['CAC',f.cac>0?money(f.cac):'—'],['Break-even',`${Math.ceil(f.breakEvenConversions)} subs`]].map(([l,v])=>(
-            <div key={l as string} className="fc-metric"><span>{l}</span><b>{v}</b></div>
-          ))}
-        </div>
-      </div>
-      <p className="fc-note">Range is an estimate based on the uncertainty you entered per source. Forecasts are directional, not guaranteed results.</p>
-      <button className="ghost-btn" onClick={()=>setOpen(o=>!o)}>{open?'Hide':'Show'} per-source detail</button>
-      {open&&<div className="fc-detail">
-        <div className="fc-detail-row fc-detail-head"><span>Source</span><span>Spend</span><span>Clicks</span><span>Visits</span><span>Net conv.</span><span>Revenue</span></div>
-        {ranked.map((s:any)=>(
-          <div key={s.id} className="fc-detail-row"><span>{s.name}</span><span>{money(s.spend)}</span><span>{Math.round(s.clicks).toLocaleString()}</span><span>{Math.round(s.landingVisits).toLocaleString()}</span><span>{Math.round(s.netConversions)}</span><span>{money(s.revenue)}</span></div>
-        ))}
-      </div>}
-    </section>
-  );
-}
-
-function ScenarioBar({scenarios,setScenarios,assumptions,setAssumptions,sources,setSources,notify}:any){
-  const[activeId,setActiveId]=useState<string|null>(null);
-  const active=scenarios.find((s:any)=>s.id===activeId);
-  const newScenario=()=>{setActiveId(null);};
-  const saveScenario=()=>{
-    const name=active?.name||`Scenario ${scenarios.length+1}`;
-    if(active){setScenarios((prev:any[])=>prev.map(s=>s.id===active.id?{...s,assumptions,sources}:s));notify('Scenario saved.');}
-    else{const id=crypto.randomUUID();setScenarios((prev:any[])=>[...prev,{id,name,assumptions,sources}]);setActiveId(id);notify('Scenario saved.');}
-  };
-  const duplicate=()=>{const id=crypto.randomUUID();setScenarios((prev:any[])=>[...prev,{id,name:`${active?.name||'Scenario'} copy`,assumptions,sources}]);setActiveId(id);notify('Scenario duplicated.');};
-  const rename=()=>{if(!active)return;const name=prompt('Rename scenario',active.name);if(name){setScenarios((prev:any[])=>prev.map(s=>s.id===active.id?{...s,name}:s));}};
-  const del=()=>{if(!active)return;setScenarios((prev:any[])=>prev.filter(s=>s.id!==active.id));setActiveId(null);notify('Scenario deleted.');};
-  const load=(id:string)=>{const sc=scenarios.find((s:any)=>s.id===id);if(sc){setActiveId(id);setAssumptions(sc.assumptions);setSources(sc.sources);notify(`Loaded "${sc.name}".`);}};
-  return(
-    <div className="scenario-bar">
-      <select value={activeId||''} onChange={e=>e.target.value?load(e.target.value):newScenario()}>
-        <option value="">New scenario</option>
-        {scenarios.map((s:any)=><option key={s.id} value={s.id}>{s.name}</option>)}
-      </select>
-      <button onClick={saveScenario}>Save</button>
-      <button onClick={duplicate} disabled={!active}>Duplicate</button>
-      <button onClick={rename} disabled={!active}>Rename</button>
-      <button onClick={del} disabled={!active}>Delete</button>
-    </div>
-  );
-}
-
-function TrafficPage({sources,setSources,forecast,notify}:any){
-  return(
-    <div className="workspace">
-      <div className="workspace-head"><div><span>TRAFFIC MIX</span><h1>Channel allocation</h1><p>Editable source assumptions. Enter values directly — every change updates the forecast.</p></div></div>
-      <TrafficTable sources={sources} setSources={setSources} forecast={forecast} notify={notify}/>
-    </div>
-  );
-}
-
-function ForecastPage({assumptions,setAssumptions,sources,setSources,forecast,scenarios,setScenarios,notify}:any){
-  return(
-    <div className="workspace">
-      <div className="workspace-head"><div><span>FORECAST</span><h1>Campaign forecast</h1><p>Calculated live from your assumptions and per-source rates. Directional estimates, not guarantees.</p></div>
-        <ScenarioBar scenarios={scenarios} setScenarios={setScenarios} assumptions={assumptions} setAssumptions={setAssumptions} sources={sources} setSources={setSources} notify={notify}/>
-      </div>
-      <AssumptionsPanel assumptions={assumptions} setAssumptions={setAssumptions} onReset={()=>{setAssumptions(DEFAULT_ASSUMPTIONS);notify('Assumptions reset to defaults.');}}/>
-      <TrafficTable sources={sources} setSources={setSources} forecast={forecast} notify={notify}/>
-      <ForecastCard forecast={forecast} assumptions={assumptions}/>
-    </div>
-  );
-}
-
-function LaunchPage({m,budget,price,creatorName,setBillingOpen,notify}:any){
-  const steps=[
-    ['Creative approved','Policy-safe creative confirmed','DONE'],
-    ['Audience locked','21+ high-intent US segment','DONE'],
-    ['Placements set','7-channel optimized mix','DONE'],
-    ['Tracking verified','Pixel + postback configured','DONE'],
-    ['Budget allocated',`$${budget.toLocaleString()} test media ready`,'DONE'],
-    ['Launch review','Final check before spend','PENDING'],
-  ];
-  return(
-    <div className="launch-screen" style={{padding:'30px 30px 0'}}>
-      <section>
-        <h2>LAUNCH CHECKLIST</h2>
-        <div className="steps">
-          {steps.map(([title,desc,status])=>(
-            <div key={title} className={`step ${status==='DONE'?'done':''}`}>
-              <i><Rocket style={{width:12}}/></i>
-              <span>{title}<small>{desc}</small></span>
-              {status==='DONE'?<Check style={{width:14,color:'#ef2931'}}/>:<ArrowUpRight style={{width:14,color:'#555'}}/>}
-            </div>
-          ))}
-        </div>
-        <button className="launch primary" style={{marginTop:20,width:'100%',padding:14,fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8}} onClick={()=>setBillingOpen(true)}><Rocket/>Fund &amp; launch campaign</button>
-      </section>
-      <div className="launch-summary">
-        <span>CAMPAIGN SUMMARY</span>
-        <h2>{creatorName||'Creator'} · Subscriber Growth</h2>
-        <dl>
-          {[['Test budget',`$${budget.toLocaleString()}`],['Subscription price',`$${price}`],['Projected subs',`${m.mid} (range ${m.low}–${m.high})`],['Modeled revenue',`$${m.rev.toLocaleString(undefined,{maximumFractionDigits:0})}`],['Channels','7-source optimized mix'],['Status','Ready to fund']].map(([dt,dd])=><div key={dt}><dt>{dt}</dt><dd>{dd}</dd></div>)}
-        </dl>
-        <button className="primary" style={{marginTop:18,width:'100%',padding:12,fontSize:11,display:'flex',alignItems:'center',justifyContent:'center',gap:8}} onClick={()=>setBillingOpen(true)}><Rocket/>Activate campaign</button>
-      </div>
-    </div>
-  );
-}
-
-function slugify(s:string){return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');}
-
-async function downloadSkillFile(name:string,notify:(m:string)=>void){
-  const slug=slugify(name);
-  try{
-    const r=await fetch(`/skills/${slug}.md`);
-    if(!r.ok)throw new Error();
-    const blob=await r.blob();
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download=`${slug}.md`;
-    document.body.appendChild(a);a.click();a.remove();
-    notify(`${name} downloaded — drop it into any AI assistant.`);
-  }catch{notify(`Couldn't download ${name}. Try again.`);}
-}
-
-function SkillsPage({notify}:any){
-  return(
-    <div className="workspace">
-      <div className="workspace-head"><div><span>AI SKILLS</span><h1>Skill library</h1><p>Download any skill as a .md playbook — use it here or drop it into your own AI assistant.</p></div></div>
-      <div className="skills-summary">
-        <div><span>SKILLS AVAILABLE</span><strong>{skillCatalog.length}</strong></div>
-        <p>Each skill is a real, downloadable playbook — from copy generation to compliance auditing. Click a card to download the .md file.</p>
-      </div>
-      <div className="skill-library">
-        {skillCatalog.map(([Icon,name,desc]:any)=>(
-          <button key={name} className="skill-card" onClick={()=>downloadSkillFile(name,notify)}>
-            <div><Icon/><span>SKILL</span></div>
-            <h2>{name}</h2>
-            <p>{desc}</p>
-            <footer><b>DOWNLOAD .MD</b><ArrowUpRight style={{width:14}}/></footer>
+      <nav className="mobile-nav" aria-label="Mobile navigation">
+        {NAV.slice(0, 7).map(([label, Icon, key]) => (
+          <button
+            key={key}
+            className={section === key ? "active" : ""}
+            aria-current={section === key ? "page" : undefined}
+            onClick={() => navigate(key)}
+          >
+            <Icon size={20} />
+            <span>{label}</span>
           </button>
         ))}
-      </div>
-    </div>
-  );
-}
-
-function CheatCodesPage({notify,loadCode}:any){
-  return(
-    <div className="workspace">
-      <div className="workspace-head"><div><span>CHEAT CODES</span><h1>Naughty Cheat Codes</h1><p>Battle-tested formulas — click one to load the full playbook into Chat Studio, or download it.</p></div></div>
-      <div className="skill-library">
-        {cheatCodes.map(([name,desc,body]:any)=>(
-          <div key={name} className="skill-card" style={{cursor:'default'}}>
-            <div><Zap/><span>FORMULA</span></div>
-            <h2>{name}</h2>
-            <p>{desc}</p>
-            <footer style={{display:'flex',gap:14}}>
-              <b style={{cursor:'pointer'}} onClick={()=>loadCode(name,body)}>USE IN CHAT</b>
-              <b style={{cursor:'pointer',color:'#8a7a7a'}} onClick={()=>downloadSkillFile(name,notify)}>DOWNLOAD</b>
-            </footer>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Drawer({title,close,notify}:any){
-  const items=title==='Skills'?skillCatalog.slice(0,8).map((x:any)=>[x[0],x[1]]):title==='Agents'?[['Brand Strategist','Positioning, voice, and offer alignment'],['Creative Director','Hooks, formats, copy, and variations'],['Media Buyer','Source mix, allocation, and optimization'],['Compliance Reviewer','18+, consent, policy, and claim checks'],['Website Analyst','Live public-site brand intelligence']]:cheatCodes;
-  return <div className="drawer"><div className="drawer-head"><div><span>ADD TO CHAT</span><h2>{title}</h2></div><button onClick={close}><X/></button></div><div className="drawer-list">{items.map(([name,description]:any)=><button key={name} onClick={()=>{notify(`${name} added to Chat Studio.`);close()}}><div>{title==='Agents'?<Bot/>:title==='Skills'?<Sparkles/>:<Zap/>}</div><span><b>{name}</b><small>{description}</small></span><Plus/></button>)}</div></div>;
-}
-
-function SettingsModal({close,onFund}:any){
-  return(
-    <div className="billing-overlay" onClick={e=>{if(e.target===e.currentTarget)close();}}>
-      <div className="billing-modal" style={{textAlign:'left',maxWidth:440}}>
-        <button className="modal-close" onClick={close}><X/></button>
-        <span>BILLING &amp; SETTINGS</span>
-        <h1 style={{fontSize:20}}>Account</h1>
-        <div className="billing-summary">
-          <div><span>Account status</span><b style={{color:'#8fdc7a'}}>● Active · Black tier</b></div>
-          <div><span>Media balance</span><b>$25,000.00</b></div>
-          <div><span>Active campaigns</span><b>08</b></div>
-          <div><span>30-day revenue</span><b>$48,920</b></div>
-          <div><span>Account manager</span><b>Priority desk</b></div>
+        <button
+          aria-label="More screens"
+          onClick={() => setModal({ type: "navigation" })}
+        >
+          <Menu size={20} />
+          <span>More</span>
+        </button>
+      </nav>
+      {toast && (
+        <div className="toast" role="status">
+          <CheckCircle2 size={18} />
+          {toast}
         </div>
-        <button className="primary" style={{width:'100%',padding:13}} onClick={onFund}><CreditCard/> Add funds</button>
-      </div>
+      )}
+      {modal && (
+        <Modal
+          title={
+            (
+              {
+                navigation: "All screens",
+                activity: "Recent activity",
+                templates: "Campaign templates",
+                "link-detail": "Tracked link details",
+                subscription: "Add your creator page",
+                campaign: "Create a campaign & tracked link",
+                qr: "Share your tracking link",
+                copy: "Copy this value",
+                compare: "Compare campaigns",
+                "campaign-detail": "Campaign results",
+                swap: "Propose a Peer Swap",
+                counter: "Propose a new schedule",
+                "swap-result": "Collaboration results",
+                "peer-safety": "Creator safety",
+                conversion: "Record a subscriber conversion",
+                terms: "Terms of service",
+                privacy: "Privacy & consent",
+              } as any
+            )[modal.type] || "Details"
+          }
+          close={() => {
+            setModal(null);
+            setError("");
+          }}
+          wide={["compare", "swap-result", "campaign-detail"].includes(
+            modal.type,
+          )}
+        >
+          {error && (
+            <div className="inline-error" role="alert">
+              {error}
+            </div>
+          )}
+          {modal.type === "navigation" && (
+            <div className="np-all-screens">
+              {NAV.map(([label, Icon, key]) => (
+                <button
+                  className="button"
+                  key={key}
+                  onClick={() => navigate(key)}
+                >
+                  <Icon size={18} />
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {modal.type === "activity" && (
+            <div className="np-full-activity">
+              {state.notifications.length ? (
+                state.notifications.map((n: any) => (
+                  <article key={n.id}>
+                    <Activity size={18} />
+                    <div>
+                      <p>{n.message}</p>
+                      <small>{new Date(n.created_at).toLocaleString()}</small>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <p>
+                  No activity yet. Campaign and swap updates will appear here.
+                </p>
+              )}
+            </div>
+          )}
+          {modal.type === "templates" && (
+            <div className="np-template-picker">
+              {campaignPresets.map(([name, source, image]) => (
+                <button
+                  key={name}
+                  onClick={() =>
+                    name === "Pure Swap"
+                      ? navigate("peer-swap")
+                      : setModal({ type: "campaign", name, source })
+                  }
+                >
+                  <img src={image} alt="" />
+                  <span>
+                    <strong>{name}</strong>
+                    <small>{source} · customize before creating</small>
+                  </span>
+                  <ArrowRight size={18} />
+                </button>
+              ))}
+            </div>
+          )}
+          {modal.type === "link-detail" && (
+            <div className="np-link-detail">
+              <h3>{modal.link.name}</h3>
+              <code>{modal.link.url}</code>
+              <p>
+                {modal.link.source} · {modal.link.status}
+              </p>
+              <p>
+                {modal.link.click_count} clicks ·{" "}
+                {modal.link.unique_click_count} unique visitors ·{" "}
+                {modal.link.conversion_count} creator-reported conversions
+              </p>
+              <p>Destination: {modal.link.destination}</p>
+              <div className="np-detail-actions">
+                <button
+                  className="button primary"
+                  onClick={() => copy(modal.link.url)}
+                >
+                  Copy link
+                </button>
+                <button className="button" onClick={() => showQR(modal.link)}>
+                  Show QR code
+                </button>
+                <button
+                  className="button"
+                  onClick={() => {
+                    const c = state.campaigns.find(
+                      (c: any) => c.id === modal.link.campaign_id,
+                    );
+                    if (c) setModal({ type: "campaign-detail", campaign: c });
+                  }}
+                >
+                  View campaign results
+                </button>
+              </div>
+            </div>
+          )}
+          {modal.type === "subscription" && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const values = formData(e);
+                perform(
+                  () =>
+                    api("/accounts", "POST", {
+                      provider: modal.provider,
+                      ...values,
+                    }),
+                  "Creator page saved. Counts are labeled creator-reported.",
+                );
+              }}
+            >
+              <p className="muted">
+                {modal.provider} public creator page. No verified official
+                subscriber-sync API is configured for this platform.
+              </p>
+              <div className="info">
+                <ShieldCheck size={18} />
+                <span>
+                  Never enter your platform password, login cookies, or private
+                  subscriber information.
+                </span>
+              </div>
+              <Field label={`${modal.provider} creator URL`}>
+                <input
+                  name="url"
+                  type="url"
+                  required
+                  defaultValue={modal.account?.url || ""}
+                  placeholder={`https://${({ OnlyFans: "onlyfans.com", Fansly: "fansly.com", Pornhub: "pornhub.com" } as any)[modal.provider]}/your-page`}
+                />
+              </Field>
+              <Field
+                label="Current paid subscribers (optional)"
+                hint="This is a count you provide, not live platform data. For Pornhub, do not enter free followers as paid subscribers."
+              >
+                <input
+                  name="manual_subscribers"
+                  type="number"
+                  min={0}
+                  step={1}
+                  defaultValue={modal.account?.manual_subscribers ?? ""}
+                />
+              </Field>
+              <button className="button primary full" disabled={busy}>
+                {busy ? "Saving…" : "Save creator page"}
+              </button>
+            </form>
+          )}
+          {modal.type === "campaign" && (
+            <form onSubmit={createCampaign}>
+              <p className="muted">
+                One simple campaign. One unique link. Every click accounted for.
+              </p>
+              <Field label="Campaign name">
+                <input
+                  name="name"
+                  defaultValue={modal.name || ""}
+                  required
+                  maxLength={100}
+                  placeholder="e.g. Reddit weekend launch"
+                />
+              </Field>
+              <div className="form-grid">
+                <Field label="Traffic source">
+                  <select
+                    name="source"
+                    defaultValue={
+                      modal.source ||
+                      (source === "All sources" ? "Reddit" : source)
+                    }
+                  >
+                    {state.sources.map((v: string) => (
+                      <option key={v}>{v}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Peer partner (optional)">
+                  <select name="peer_id">
+                    <option value="">No peer partner</option>
+                    {state.peers.map((v: any) => (
+                      <option key={v.id} value={v.creator_id}>
+                        {v.display_name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+              <Field label="Destination URL">
+                <input
+                  name="destination"
+                  type="url"
+                  required
+                  defaultValue={modal.destination || p.destination}
+                />
+              </Field>
+              <div className="form-grid">
+                <Field label="Start date">
+                  <input
+                    type="date"
+                    name="start_date"
+                    defaultValue={today()}
+                    required
+                  />
+                </Field>
+                <Field label="End date (optional)">
+                  <input type="date" name="end_date" />
+                </Field>
+              </div>
+              <div className="form-grid">
+                <Field label="Cost in USD (optional)">
+                  <input
+                    type="number"
+                    name="cost"
+                    min="0"
+                    step=".01"
+                    placeholder="0.00"
+                  />
+                </Field>
+                <Field label="Post / content identifier (optional)">
+                  <input
+                    name="content_id"
+                    maxLength={160}
+                    defaultValue={modal.content_id || ""}
+                    placeholder="e.g. weekend-story"
+                  />
+                </Field>
+              </div>
+              <button className="button primary full" disabled={busy}>
+                {busy ? "Creating…" : "Create campaign & link"}
+                <ArrowRight size={16} />
+              </button>
+            </form>
+          )}
+          {modal.type === "copy" && (
+            <>
+              <p>Select and copy the value below.</p>
+              <textarea
+                readOnly
+                value={modal.value}
+                rows={4}
+                onFocus={(e) => e.target.select()}
+              />
+            </>
+          )}
+          {modal.type === "qr" && (
+            <div className="qr-view">
+              <img src={modal.data} alt={`QR code for ${modal.link.name}`} />
+              <h3>{modal.link.name}</h3>
+              <code>{modal.link.url}</code>
+              <a
+                className="button primary"
+                href={modal.data}
+                download={`${modal.link.slug}-qr.png`}
+              >
+                <Download size={16} />
+                Download QR code
+              </a>
+            </div>
+          )}
+          {modal.type === "campaign-detail" && (
+            <>
+              <h3>{modal.campaign.name}</h3>
+              <p className="muted">
+                {modal.campaign.source} · creator-provided conversion reports
+              </p>
+              <div className="mini-metrics detail-metrics">
+                {[
+                  ["Visitors", num(modal.campaign.metrics.visitors)],
+                  ["Clicks", num(modal.campaign.metrics.clicks)],
+                  ["Conversions", num(modal.campaign.metrics.conversions)],
+                  [
+                    "Conversion rate",
+                    pct(modal.campaign.metrics.conversionRate),
+                  ],
+                  ["Revenue", money(modal.campaign.metrics.revenue)],
+                  ["Cost", money(modal.campaign.cost)],
+                  [
+                    "ROI",
+                    modal.campaign.roi === null
+                      ? "Not entered"
+                      : pct(modal.campaign.roi),
+                  ],
+                ].map(([label, value]) => (
+                  <Metric
+                    key={label}
+                    label={label}
+                    value={value}
+                    detail="Selected date range"
+                  />
+                ))}
+              </div>
+              <button
+                className="button"
+                onClick={() =>
+                  copy(
+                    state.links.find(
+                      (l: any) => l.id === modal.campaign.link_id,
+                    )?.url || "",
+                  )
+                }
+              >
+                <Copy size={16} />
+                Copy tracking link
+              </button>
+            </>
+          )}
+          {modal.type === "compare" && (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Campaign</th>
+                    <th>Visitors</th>
+                    <th>Conversions</th>
+                    <th>Rate</th>
+                    <th>Revenue</th>
+                    <th>Cost</th>
+                    <th>ROI</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.campaigns
+                    .filter((c: any) => compare.includes(c.id))
+                    .map((c: any) => (
+                      <tr key={c.id}>
+                        <td>{c.name}</td>
+                        <td>{num(c.metrics.visitors)}</td>
+                        <td>{c.metrics.conversions}</td>
+                        <td>{pct(c.metrics.conversionRate)}</td>
+                        <td>{money(c.metrics.revenue)}</td>
+                        <td>{money(c.cost)}</td>
+                        <td>{c.roi === null ? "—" : pct(c.roi)}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {["swap", "counter"].includes(modal.type) && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const b: any = formData(e);
+                perform(
+                  () =>
+                    api(
+                      modal.type === "swap"
+                        ? "/swaps"
+                        : `/swaps/${modal.swap.id}/respond`,
+                      "POST",
+                      {
+                        ...b,
+                        peer_id: modal.peer?.creator_id,
+                        action: "counter",
+                      },
+                    ),
+                  modal.type === "swap"
+                    ? "Swap request sent"
+                    : "Counter proposal sent",
+                );
+              }}
+            >
+              <p className="muted">
+                {modal.type === "swap"
+                  ? `A mutual promotion with ${modal.peer.display_name}. Both creators receive their own attribution when accepted.`
+                  : "Suggest a different start date or duration. Your partner can accept or decline."}
+              </p>
+              {modal.type === "swap" && (
+                <div className="form-grid">
+                  <Field label="Promotion type">
+                    <select name="type">
+                      {state.swap_types.map((v: string) => (
+                        <option key={v}>{v}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Platform">
+                    <input
+                      name="platform"
+                      defaultValue={modal.peer.platform}
+                      required
+                    />
+                  </Field>
+                </div>
+              )}
+              <div className="form-grid">
+                <Field label="Start date">
+                  <input
+                    type="date"
+                    name="start_date"
+                    defaultValue={today()}
+                    required
+                  />
+                </Field>
+                <Field label="Duration (days)">
+                  <input
+                    type="number"
+                    name="duration"
+                    defaultValue={7}
+                    min={1}
+                    max={90}
+                    required
+                  />
+                </Field>
+              </div>
+              <Field label="Note (optional)">
+                <textarea
+                  name="note"
+                  maxLength={500}
+                  rows={3}
+                  placeholder="What would make this a great collaboration?"
+                />
+              </Field>
+              <div className="info">
+                <ShieldCheck size={18} />
+                <span>
+                  Send only consensual promotions. No subscriber identities are
+                  shared.
+                </span>
+              </div>
+              <button className="button primary full" disabled={busy}>
+                {busy
+                  ? "Sending…"
+                  : modal.type === "swap"
+                    ? "Send swap request"
+                    : "Send counter proposal"}
+                <Send size={16} />
+              </button>
+            </form>
+          )}
+          {modal.type === "swap-result" && (
+            <>
+              <div className="swap-result-heading">
+                <h3>
+                  {modal.swap.partner?.display_name} × {p.display_name}
+                </h3>
+                <Badge
+                  tone={
+                    modal.swap.fairness === "Balanced" ? "green" : "neutral"
+                  }
+                >
+                  {modal.swap.fairness}
+                </Badge>
+              </div>
+              <p className="muted">
+                Aggregate results only. Fairness compares unique traffic
+                received in each direction; conversion quality is shown
+                separately.
+              </p>
+              <div className="swap-results">
+                <div>
+                  <h3>
+                    <ArrowDownLeft size={18} />
+                    Traffic you received
+                  </h3>
+                  <strong>{num(modal.swap.received?.visitors)}</strong>
+                  <p>unique visitors</p>
+                  <span>
+                    {modal.swap.received?.conversions || 0} subscriber reports ·{" "}
+                    {money(modal.swap.received?.revenue)}
+                  </span>
+                  <small>
+                    {num(modal.swap.received?.clicks)} outbound clicks ·{" "}
+                    {pct(modal.swap.received?.conversionRate)} conversion
+                  </small>
+                </div>
+                <div>
+                  <h3>
+                    <ArrowUpRight size={18} />
+                    Traffic you sent
+                  </h3>
+                  <strong>{num(modal.swap.sent?.visitors)}</strong>
+                  <p>unique visitors</p>
+                  <span>
+                    {modal.swap.sent?.conversions || 0} subscriber reports ·{" "}
+                    {money(modal.swap.sent?.revenue)}
+                  </span>
+                  <small>
+                    {num(modal.swap.sent?.clicks)} outbound clicks ·{" "}
+                    {pct(modal.swap.sent?.conversionRate)} conversion
+                  </small>
+                </div>
+              </div>
+              {modal.swap.share_url && (
+                <div className="share-partner">
+                  <p>
+                    This is your partner’s link. Share it in your promotion.
+                  </p>
+                  <code>{modal.swap.share_url}</code>
+                  <button
+                    className="button"
+                    onClick={() => copy(modal.swap.share_url)}
+                  >
+                    <Copy size={16} />
+                    Copy partner link
+                  </button>
+                </div>
+              )}
+              {modal.swap.status === "accepted" && (
+                <button
+                  className="button full"
+                  disabled={busy}
+                  onClick={() =>
+                    perform(
+                      () =>
+                        api(`/swaps/${modal.swap.id}/respond`, "POST", {
+                          action: "complete",
+                        }),
+                      "Collaboration completed",
+                    )
+                  }
+                >
+                  Mark collaboration complete
+                  <Check size={16} />
+                </button>
+              )}
+            </>
+          )}
+          {modal.type === "peer-safety" && (
+            <>
+              <p>Manage your relationship with {modal.peer.display_name}.</p>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const b = formData(e);
+                  perform(
+                    () =>
+                      api("/reports", "POST", {
+                        ...b,
+                        peer_id: modal.peer.creator_id,
+                      }),
+                    "Report submitted for admin review",
+                  );
+                }}
+              >
+                <Field label="Report reason">
+                  <textarea
+                    name="reason"
+                    required
+                    rows={3}
+                    maxLength={500}
+                    placeholder="Describe the issue. Do not include subscriber identities."
+                  />
+                </Field>
+                <button className="button full" disabled={busy}>
+                  Submit report
+                  <ShieldCheck size={16} />
+                </button>
+              </form>
+              <button
+                className="button danger full"
+                disabled={busy}
+                onClick={() =>
+                  perform(
+                    () =>
+                      api(`/peers/${modal.peer.creator_id}/block`, "POST", {}),
+                    "Creator blocked",
+                  )
+                }
+              >
+                Block creator
+              </button>
+            </>
+          )}
+          {modal.type === "conversion" && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const b = formData(e);
+                perform(
+                  () => api("/conversions", "POST", b),
+                  "Creator-provided conversion recorded",
+                );
+              }}
+            >
+              <div className="info">
+                <CircleHelp size={19} />
+                <span>
+                  Only record a real conversion you can substantiate. This is a
+                  creator-provided report, not an automatic platform sync.
+                </span>
+              </div>
+              <Field
+                label="Tracking link (optional)"
+                hint="Without a link or recorded session, attribution is uncertain and won’t be credited to a campaign."
+              >
+                <select name="tracked_link_id">
+                  <option value="">Unknown / unverified source</option>
+                  {state.links.map((l: any) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field
+                label="Anonymous session ID (optional)"
+                hint="A recorded session applies your selected first/last touch source. Never enter a subscriber’s identity."
+              >
+                <input name="session_id" placeholder="Anonymous session UUID" />
+              </Field>
+              <Field label="Revenue (USD)">
+                <input
+                  name="revenue"
+                  type="number"
+                  min={0}
+                  step=".01"
+                  defaultValue="0"
+                  required
+                />
+              </Field>
+              <Field
+                label="Your conversion reference (optional)"
+                hint="Used to prevent duplicate reports. No subscriber names or emails."
+              >
+                <input name="external_id" maxLength={100} />
+              </Field>
+              <button className="button primary full" disabled={busy}>
+                {busy ? "Recording…" : "Record conversion"}
+              </button>
+            </form>
+          )}
+          {["privacy", "terms"].includes(modal.type) && (
+            <Legal kind={modal.type} />
+          )}
+        </Modal>
+      )}
     </div>
   );
 }
-
-function BillingBoundary({budget,creatorName,close}:any){
-  return <div className="billing-overlay"><div className="billing-modal"><button className="modal-close" onClick={close}><X/></button><div className="billing-lock"><LockKeyhole/></div><span>SECURE ACTIVATION HANDOFF</span><h1>Campaign is ready to fund.</h1><p>The complete demo ends here. A production account would continue to a PCI-compliant payment provider; Naughty Pilot does not collect card details on this screen.</p><div className="billing-summary"><div><span>Campaign</span><b>{creatorName||'Creator'} · Subscriber Growth</b></div><div><span>Test media budget</span><b>${budget}.00</b></div><div><span>Activation status</span><b>Ready</b></div></div><button className="payment-boundary" onClick={()=>{}}><CreditCard/> Add payment method <ArrowUpRight/></button><small><ShieldCheck/> DEMO STOP POINT · No charge made · No card data collected</small></div></div>;
+function Account({ state, busy, perform, api, copy, setModal, logout }: any) {
+  const [form, setForm] = useState({ ...state.profile }),
+    [diagnostics, setDiagnostics] = useState<any>({});
+  const set = (k: string, v: any) => setForm({ ...form, [k]: v });
+  useEffect(() => setForm({ ...state.profile }), [state.profile.platform]);
+  const exportData = async () => {
+    const d = await api("/export");
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(d, null, 2)], { type: "application/json" }),
+    );
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "naughty-pilot-export.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  return (
+    <div className="account-layout">
+      <section className="panel account-profile">
+        <div className="panel-heading">
+          <div>
+            <h2>Your creator identity</h2>
+            <p>The person behind your growth.</p>
+          </div>
+          <span className="avatar">{initials(form.display_name)}</span>
+        </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            perform(
+              () =>
+                api("/profile", "PUT", {
+                  ...form,
+                  current_subscribers:
+                    form.current_subscribers === ""
+                      ? null
+                      : form.current_subscribers,
+                }),
+              "Profile saved",
+              false,
+            );
+          }}
+        >
+          <div className="form-grid">
+            <Field label="Display name">
+              <input
+                value={form.display_name}
+                onChange={(e) => set("display_name", e.target.value)}
+                maxLength={80}
+                required
+              />
+            </Field>
+            <Field label="Niche">
+              <input
+                value={form.niche}
+                onChange={(e) => set("niche", e.target.value)}
+                maxLength={80}
+                required
+              />
+            </Field>
+          </div>
+          <div className="form-grid">
+            <Field label="Subscription platform">
+              <select
+                value={form.platform}
+                onChange={(e) => set("platform", e.target.value)}
+                required
+              >
+                {Array.from(
+                  new Set([
+                    "Subscription platform",
+                    "OnlyFans",
+                    "Fansly",
+                    "Patreon",
+                    "Pornhub",
+                    "Other",
+                    form.platform,
+                  ]),
+                ).map((v) => (
+                  <option key={v}>{v}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Current subscribers (self-reported)">
+              <input
+                type="number"
+                min="0"
+                value={form.current_subscribers ?? ""}
+                placeholder="Not available"
+                onChange={(e) => set("current_subscribers", e.target.value)}
+              />
+            </Field>
+          </div>
+          <Field label="Creator destination URL">
+            <input
+              type="url"
+              value={form.destination}
+              onChange={(e) => set("destination", e.target.value)}
+              required
+            />
+          </Field>
+          <Field label="Website URL">
+            <input
+              type="url"
+              value={form.website || ""}
+              onChange={(e) => set("website", e.target.value)}
+            />
+          </Field>
+          <div className="form-grid">
+            <Field label="Audience tier (self-reported)">
+              <select
+                value={form.audience_tier}
+                onChange={(e) => set("audience_tier", e.target.value)}
+              >
+                {["Under 1k", "1k–10k", "10k–50k", "50k+"].map((v) => (
+                  <option key={v}>{v}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Country / region (optional)">
+              <input
+                value={form.region || ""}
+                onChange={(e) => set("region", e.target.value)}
+              />
+            </Field>
+          </div>
+          <label className="checkline">
+            <input
+              type="checkbox"
+              checked={form.discovery}
+              onChange={(e) => set("discovery", e.target.checked)}
+            />
+            Show my profile in Peer Swap discovery.
+          </label>
+          <label className="checkline">
+            <input
+              type="checkbox"
+              checked={form.show_region}
+              onChange={(e) => set("show_region", e.target.checked)}
+            />
+            Display my region publicly.
+          </label>
+          <label className="checkline">
+            <input
+              type="checkbox"
+              checked={form.availability !== false}
+              onChange={(e) => set("availability", e.target.checked)}
+            />
+            Available for collaboration requests.
+          </label>
+          <Field label="Preferred promotion types">
+            <div className="promotion-checks">
+              {state.swap_types.map((v: string) => (
+                <label className="checkline" key={v}>
+                  <input
+                    type="checkbox"
+                    checked={form.promotion_types.includes(v)}
+                    onChange={(e) =>
+                      set(
+                        "promotion_types",
+                        e.target.checked
+                          ? [...form.promotion_types, v]
+                          : form.promotion_types.filter((t: string) => t !== v),
+                      )
+                    }
+                  />
+                  {v}
+                </label>
+              ))}
+            </div>
+          </Field>
+          <button className="button primary" disabled={busy}>
+            Save profile
+            <Check size={16} />
+          </button>
+        </form>
+      </section>
+      <SubscriberConnections
+        state={state}
+        busy={busy}
+        perform={perform}
+        setModal={setModal}
+      />
+      <section className="panel account-connections">
+        <div className="panel-heading">
+          <div>
+            <h2>Connect accounts</h2>
+            <p>Official APIs only. Honest connection status.</p>
+          </div>
+          <Globe size={19} />
+        </div>
+        <div className="connections-list">
+          {state.providers
+            .filter(
+              (v: string) =>
+                ![
+                  "Website",
+                  "Subscription platform",
+                  "OnlyFans",
+                  "Fansly",
+                  "Patreon",
+                  "Pornhub",
+                ].includes(v),
+            )
+            .map((provider: string) => {
+              const account = state.accounts.find(
+                (a: any) => a.provider === provider,
+              );
+              return (
+                <div key={provider}>
+                  <span className="source-symbol">{provider[0]}</span>
+                  <div>
+                    <strong>{provider}</strong>
+                    <small>
+                      {account?.message ||
+                        "Not connected · official API setup required"}
+                    </small>
+                    {account?.last_sync && (
+                      <small>
+                        Last attempt:{" "}
+                        {new Date(account.last_sync).toLocaleString()}
+                      </small>
+                    )}
+                  </div>
+                  {account && account.status !== "disconnected" ? (
+                    <div className="connection-actions">
+                      <Badge>{account.status.replaceAll("_", " ")}</Badge>
+                      <button
+                        className="icon-button"
+                        disabled={busy}
+                        aria-label={`Sync ${provider}`}
+                        onClick={() =>
+                          perform(
+                            () =>
+                              api(`/accounts/${account.id}/sync`, "POST", {}),
+                            "Sync status updated",
+                            false,
+                          )
+                        }
+                      >
+                        <RefreshCw size={15} />
+                      </button>
+                      <button
+                        className="icon-button"
+                        disabled={busy}
+                        aria-label={`Disconnect ${provider}`}
+                        onClick={() =>
+                          perform(
+                            () => api(`/accounts/${account.id}`, "DELETE"),
+                            "Account disconnected",
+                            false,
+                          )
+                        }
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      className="button small-button"
+                      disabled={busy}
+                      onClick={() =>
+                        perform(
+                          () =>
+                            api("/accounts", "POST", {
+                              provider,
+                              url:
+                                provider === "Subscription platform"
+                                  ? form.destination
+                                  : undefined,
+                            }),
+                          "Connection status checked",
+                          false,
+                        )
+                      }
+                    >
+                      Check setup
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      </section>
+      <section className="panel website-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Your website, connected.</h2>
+            <p>Verify ownership. Install tracking. Test events.</p>
+          </div>
+          <Radio size={19} />
+        </div>
+        <form
+          className="website-add"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const b = Object.fromEntries(
+              new FormData(e.target as HTMLFormElement),
+            );
+            perform(
+              () => api("/websites", "POST", b),
+              "Website added. Verify your domain below.",
+              false,
+            );
+          }}
+        >
+          <Field label="Website URL">
+            <input
+              name="url"
+              type="url"
+              placeholder="https://yourwebsite.com"
+              required
+              defaultValue={form.website || ""}
+            />
+          </Field>
+          <button className="button" disabled={busy}>
+            <Plus size={16} />
+            Add website
+          </button>
+        </form>
+        {state.websites.map((w: any) => {
+          const base = location.origin;
+          const script = `<script>window.NP_TRACKING_CONSENT = true;</script>\n<script async src="${base}/tracking.js" data-token="${w.token}"></script>`;
+          return (
+            <div className="website-config" key={w.id}>
+              <div className="website-title">
+                <h3>{w.domain}</h3>
+                <Badge
+                  tone={w.status === "receiving_events" ? "green" : "neutral"}
+                >
+                  {w.status.replaceAll("_", " ")}
+                </Badge>
+              </div>
+              <ol className="install-steps">
+                <li>
+                  <strong>Verify your domain with DNS</strong>
+                  <p>
+                    Add a TXT record named <code>_naughtypilot</code> with this
+                    value:
+                  </p>
+                  <div className="code-box">
+                    <code>np-verification={w.verification}</code>
+                    <button
+                      className="icon-button"
+                      aria-label="Copy verification record"
+                      onClick={() => copy(`np-verification=${w.verification}`)}
+                    >
+                      <Copy size={15} />
+                    </button>
+                  </div>
+                  <button
+                    className="button small-button"
+                    disabled={busy}
+                    onClick={() =>
+                      perform(
+                        () => api(`/websites/${w.id}/verify`, "POST", {}),
+                        "Domain verified",
+                        false,
+                      )
+                    }
+                  >
+                    Check verification
+                    <RefreshCw size={14} />
+                  </button>
+                </li>
+                <li>
+                  <strong>Install tracking after visitor consent</strong>
+                  <p>
+                    Set the consent flag only after permission is granted. Add
+                    this script to your site. Mark subscription links with{" "}
+                    <code>data-np-event="subscription_click"</code>.
+                  </p>
+                  <div className="code-box">
+                    <code>{script}</code>
+                    <button
+                      className="icon-button"
+                      aria-label="Copy website tracking script"
+                      onClick={() => copy(script)}
+                    >
+                      <Copy size={15} />
+                    </button>
+                  </div>
+                </li>
+                <li>
+                  <strong>Test your connection</strong>
+                  <p>
+                    Open your website and grant tracking consent. Then check
+                    whether events arrived.
+                  </p>
+                  <button
+                    className="button small-button"
+                    onClick={() =>
+                      perform(
+                        async () => {
+                          const d = await api(
+                            `/websites/${w.id}/test`,
+                            "POST",
+                            {},
+                          );
+                          setDiagnostics({ ...diagnostics, [w.id]: d });
+                        },
+                        "Diagnostics refreshed",
+                        false,
+                      )
+                    }
+                    disabled={busy}
+                  >
+                    Run diagnostics
+                    <Radio size={14} />
+                  </button>
+                  {diagnostics[w.id] && (
+                    <div className="info">
+                      <AlertCircle size={18} />
+                      <span>
+                        {diagnostics[w.id].message}
+                        <br />
+                        Domain:{" "}
+                        {diagnostics[w.id].verified
+                          ? "verified"
+                          : "not verified"}{" "}
+                        · Script:{" "}
+                        {diagnostics[w.id].installed
+                          ? "events received"
+                          : "not detected"}
+                      </span>
+                    </div>
+                  )}
+                </li>
+              </ol>
+            </div>
+          );
+        })}
+      </section>
+      <section className="panel privacy-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Privacy, safety & your data</h2>
+            <p>You’re in control.</p>
+          </div>
+          <ShieldCheck size={19} />
+        </div>
+        <div className="privacy-actions">
+          <button className="button" onClick={exportData}>
+            <Download size={16} />
+            Export my data
+          </button>
+          <button
+            className="button"
+            onClick={() => setModal({ type: "privacy" })}
+          >
+            Privacy & consent
+          </button>
+          <button
+            className="button"
+            onClick={() => setModal({ type: "terms" })}
+          >
+            Terms of service
+          </button>
+          <button
+            className="button"
+            onClick={() =>
+              perform(
+                async () => {
+                  await api("/auth/logout", "POST", {});
+                  logout();
+                },
+                "Signed out",
+                false,
+                false,
+              )
+            }
+          >
+            <LogOut size={16} />
+            Sign out
+          </button>
+        </div>
+        {state.blocks.length > 0 && (
+          <>
+            <h3>Blocked creators</h3>
+            {state.blocks.map((b: any) => (
+              <div className="blocked-row" key={b.id}>
+                <span>Creator {b.peer_id.slice(0, 8)}</span>
+                <button
+                  className="text-button"
+                  onClick={() =>
+                    perform(
+                      () => api(`/peers/${b.peer_id}/block`, "DELETE"),
+                      "Creator unblocked",
+                      false,
+                    )
+                  }
+                >
+                  Unblock
+                </button>
+              </div>
+            ))}
+          </>
+        )}
+        <div className="danger-zone">
+          <div>
+            <strong>Delete your account</strong>
+            <p>
+              Permanently removes your account, tracking events, and campaign
+              data.
+            </p>
+          </div>
+          <button
+            className="button danger"
+            onClick={() => {
+              if (
+                confirm(
+                  "Permanently delete your account and all your analytics data? This cannot be undone.",
+                )
+              )
+                perform(
+                  async () => {
+                    await api("/account", "DELETE");
+                    logout();
+                  },
+                  "Account deleted",
+                  false,
+                  false,
+                );
+            }}
+          >
+            Delete account
+          </button>
+        </div>
+      </section>
+      {state.development && (
+        <section className="panel development-panel">
+          <div>
+            <Badge tone="accent">Development only</Badge>
+            <h2>Explore the cockpit with sample events.</h2>
+            <p>
+              Simulated traffic and peer profiles are clearly labeled. They are
+              never presented as your real results.
+            </p>
+          </div>
+          <div className="privacy-actions">
+            <button
+              className="button"
+              disabled={busy || state.has_demo}
+              onClick={() =>
+                perform(
+                  () => api("/development/sample", "POST", {}),
+                  "Labeled sample traffic loaded",
+                  false,
+                )
+              }
+            >
+              <Radio size={16} />
+              Load sample traffic
+            </button>
+            <button
+              className="button"
+              disabled={busy || !state.has_demo}
+              onClick={() =>
+                perform(
+                  () => api("/development/sample", "DELETE"),
+                  "Sample traffic cleared",
+                  false,
+                )
+              }
+            >
+              Clear samples
+            </button>
+          </div>
+        </section>
+      )}
+    </div>
+  );
 }
-
-function Field({label,value,placeholder,onChange}:any){
-  return <label>{label}<input value={value} placeholder={placeholder} onChange={e=>onChange(e.target.value)}/></label>;
+function SubscriberConnections({ state, busy, perform, setModal }: any) {
+  const [connecting, setConnecting] = useState(false),
+    [connectionError, setConnectionError] = useState("");
+  const setup = state.integration_setup?.Patreon || { configured: false };
+  async function connect() {
+    setConnecting(true);
+    setConnectionError("");
+    try {
+      const result = await api("/oauth/patreon/start", "POST", {});
+      location.assign(result.authorization_url);
+    } catch (e: any) {
+      setConnectionError(e.message);
+      setConnecting(false);
+    }
+  }
+  return (
+    <section className="panel subscription-panel">
+      <div className="panel-heading">
+        <div>
+          <h2>Your subscription platforms</h2>
+          <p>
+            Official subscriber counts where available. Creator-reported counts
+            where they aren’t.
+          </p>
+        </div>
+        <Users size={19} />
+      </div>
+      {connectionError && (
+        <div className="inline-error" role="alert">
+          {connectionError}
+        </div>
+      )}
+      <div className="subscription-grid">
+        {["OnlyFans", "Fansly", "Patreon", "Pornhub"].map((provider) => {
+          const account = state.accounts.find(
+              (a: any) => a.provider === provider,
+            ),
+            connected = account && account.status !== "disconnected",
+            official = provider === "Patreon";
+          const count = official
+            ? account?.metrics?.current_subscribers
+            : account?.manual_subscribers;
+          const measured = official ? account?.last_sync : account?.reported_at;
+          return (
+            <article
+              className="subscription-card"
+              key={provider}
+              aria-label={`${provider} subscriber connection`}
+            >
+              <div className="subscription-heading">
+                <span className="source-symbol">{provider[0]}</span>
+                <h3>{provider}</h3>
+                <Badge
+                  tone={
+                    official && account?.status === "connected"
+                      ? "green"
+                      : "neutral"
+                  }
+                >
+                  {official
+                    ? account?.status === "connected"
+                      ? "API connected"
+                      : account?.status === "needs_reauthorization"
+                        ? "Reconnect required"
+                        : account?.status === "sync_error"
+                          ? "Sync failed"
+                          : "OAuth required"
+                    : "Creator-reported"}
+                </Badge>
+              </div>
+              <div className="subscriber-number">
+                <strong>{count == null ? "—" : num(count)}</strong>
+                <span>current paid subscribers</span>
+              </div>
+              <p>
+                {official
+                  ? account?.message ||
+                    "Authorize your creator account through Patreon. Counts refresh about every five minutes."
+                  : "Public creator page and counts you provide. Live subscriber syncing is not configured."}
+              </p>
+              {measured && (
+                <small>
+                  {official ? "Last successful sync" : "Reported"}:{" "}
+                  {new Date(measured).toLocaleString()}
+                </small>
+              )}
+              {official && account?.metrics && (
+                <small>
+                  {account.metrics.active_free_members} active free members ·
+                  not included in paid count
+                </small>
+              )}
+              <div className="subscription-actions">
+                {official ? (
+                  connected ? (
+                    <>
+                      <button
+                        className="button small-button"
+                        disabled={
+                          busy || account.status === "needs_reauthorization"
+                        }
+                        onClick={() =>
+                          perform(
+                            () =>
+                              api(`/accounts/${account.id}/sync`, "POST", {}),
+                            "Patreon subscriber count synced",
+                            false,
+                          )
+                        }
+                      >
+                        <RefreshCw size={14} />
+                        Sync now
+                      </button>
+                      {account.status === "needs_reauthorization" && (
+                        <button
+                          className="button primary small-button"
+                          disabled={connecting || !setup.configured}
+                          onClick={connect}
+                        >
+                          Reconnect
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <button
+                      className="button primary small-button"
+                      disabled={connecting || !setup.configured}
+                      onClick={connect}
+                    >
+                      {connecting ? "Opening Patreon…" : "Connect Patreon"}
+                      <ExternalLink size={13} />
+                    </button>
+                  )
+                ) : (
+                  <button
+                    className="button small-button"
+                    disabled={busy}
+                    onClick={() =>
+                      setModal({ type: "subscription", provider, account })
+                    }
+                  >
+                    <Plus size={14} />
+                    {connected ? "Edit creator page" : "Add creator page"}
+                  </button>
+                )}
+                {connected && (
+                  <button
+                    className="icon-button"
+                    aria-label={`Disconnect ${provider}`}
+                    disabled={busy}
+                    onClick={() =>
+                      perform(
+                        () => api(`/accounts/${account.id}`, "DELETE"),
+                        `${provider} disconnected`,
+                        false,
+                      )
+                    }
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+                {connected && state.profile.platform !== provider && (
+                  <button
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() =>
+                      perform(
+                        () =>
+                          api("/profile", "PUT", {
+                            ...state.profile,
+                            platform: provider,
+                            destination:
+                              account.url || state.profile.destination,
+                          }),
+                        `Primary subscriber platform changed to ${provider}`,
+                        false,
+                      )
+                    }
+                  >
+                    Use on Home
+                  </button>
+                )}
+              </div>
+              {official && !setup.configured && (
+                <details className="provider-setup">
+                  <summary>Set up the Patreon OAuth app</summary>
+                  <p>
+                    Register a client in{" "}
+                    <a
+                      href="https://www.patreon.com/portal/registration/register-clients"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Patreon’s developer portal <ExternalLink size={11} />
+                    </a>
+                    . Set the server’s client ID and secret in environment
+                    settings. No secrets belong in your browser or chat.
+                  </p>
+                  <p>Registered callback:</p>
+                  <code>
+                    {setup.callback_url ||
+                      location.origin + "/api/cockpit/oauth/patreon/callback"}
+                  </code>
+                </details>
+              )}
+            </article>
+          );
+        })}
+      </div>
+      <div className="info">
+        <CircleHelp size={18} />
+        <span>
+          Platform subscriber totals are separate from tracked campaign
+          conversions. A new synced subscriber is never automatically credited
+          to a campaign. Select your primary platform to show its count on Home.
+        </span>
+      </div>
+    </section>
+  );
+}
+function Admin() {
+  const [data, setData] = useState<any>(null),
+    [error, setError] = useState("");
+  useEffect(() => {
+    api("/admin")
+      .then(setData)
+      .catch((e) => setError(e.message));
+  }, []);
+  return error ? (
+    <div className="panel">
+      <Empty
+        icon={ShieldCheck}
+        title="Administrator access required"
+        description={error}
+      />
+    </div>
+  ) : data ? (
+    <div className="panel">
+      <h2>System health: {data.health}</h2>
+      <div className="mini-metrics">
+        <Metric
+          label="Users"
+          value={data.users.length}
+          detail="Registered accounts"
+        />
+        <Metric label="Events" value={data.events} detail="Recorded volume" />
+        <Metric
+          label="Campaigns"
+          value={data.campaigns}
+          detail={`${data.swaps} swaps`}
+        />
+      </div>
+      <h3>Reports ({data.reports.length})</h3>
+      {data.reports.map((r: any) => (
+        <p key={r.id}>{r.reason}</p>
+      ))}
+      <h3>Integration failures ({data.syncFailures.length})</h3>
+      {data.syncFailures.map((s: any) => (
+        <p key={s.id}>{s.message}</p>
+      ))}
+    </div>
+  ) : (
+    <p>Loading admin health…</p>
+  );
 }
