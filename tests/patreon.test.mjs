@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
-import { createStore } from "../api/cockpit/store.mjs";
-import { createCockpitRouter } from "../api/cockpit/router.mjs";
+import { createStore } from "../server/cockpit/store.mjs";
+import { createCockpitRouter } from "../server/cockpit/router.mjs";
 async function fixture(t) {
   const store = createStore(":memory:");
   const calls = [];

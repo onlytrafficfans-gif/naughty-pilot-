@@ -1,4 +1,4 @@
-import { createLocalServer } from "./api/_local-dev.mjs";
+import { createLocalServer } from "./server/_local-dev.mjs";
 
 createLocalServer()
   .then(({ close }) => {

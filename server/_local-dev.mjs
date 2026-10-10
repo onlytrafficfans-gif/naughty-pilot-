@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createStore } from "./cockpit/store.mjs";
 import { createCockpitRouter } from "./cockpit/router.mjs";
+import { createFounderRouter } from "./founder/router.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 function loadEnvLocal() {
   const p = path.join(root, ".env.local");
@@ -32,7 +33,9 @@ export async function createLocalServer({ args = process.argv.slice(2) } = {}) {
     `http://127.0.0.1:${port}`;
   if (production && !baseUrl.startsWith("https://"))
     throw new Error("Production requires an HTTPS NP_BASE_URL.");
-  const store = createStore(
+  const useSupabase = process.env.NP_BACKEND === 'supabase';
+  if (process.env.VERCEL && !useSupabase) throw new Error('Vercel requires the Supabase backend.');
+  const store = useSupabase ? null : createStore(
     process.env.NP_DB_PATH || path.join(root, ".data", "cockpit.sqlite"),
   );
   const app = express();
@@ -44,6 +47,7 @@ export async function createLocalServer({ args = process.argv.slice(2) } = {}) {
     app.set("trust proxy", hops);
   }
   app.get("/healthz", (_req, res) => {
+    if (useSupabase) return res.redirect(307, '/api/health');
     try {
       store.db.prepare("SELECT 1").get();
       res.set("Cache-Control", "no-store").json({ status: "ok" });
@@ -51,8 +55,8 @@ export async function createLocalServer({ args = process.argv.slice(2) } = {}) {
       res.status(503).json({ status: "unavailable" });
     }
   });
-  app.use(express.json({ limit: "16kb" }));
-  const cockpitRouter = createCockpitRouter(store, {
+  app.use(express.json({ limit: "16kb", verify: (req, _res, buffer) => { req.rawBody = Buffer.from(buffer); } }));
+  const cockpitRouter = useSupabase ? createFounderRouter() : createCockpitRouter(store, {
     development: !production,
     baseUrl,
   });
@@ -96,7 +100,7 @@ export async function createLocalServer({ args = process.argv.slice(2) } = {}) {
     console.log(`Naughty Pilot cockpit listening on ${port}`),
   );
   const syncTimer = setInterval(
-    () => cockpitRouter.syncDueAccounts().catch(() => {}),
+    () => cockpitRouter.syncDueAccounts?.().catch(() => {}),
     60000,
   );
   syncTimer.unref();
@@ -107,7 +111,7 @@ export async function createLocalServer({ args = process.argv.slice(2) } = {}) {
       server.close((err) => (err ? reject(err) : resolve())),
     );
     if (vite) await vite.close();
-    store.close();
+    store?.close();
   };
   return { app, server, store, close };
 }

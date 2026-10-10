@@ -4,9 +4,9 @@ import express from "express";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createStore } from "../api/cockpit/store.mjs";
-import { createCockpitRouter } from "../api/cockpit/router.mjs";
-import { aggregate } from "../api/cockpit/metrics.mjs";
+import { createStore } from "../server/cockpit/store.mjs";
+import { createCockpitRouter } from "../server/cockpit/router.mjs";
+import { aggregate } from "../server/cockpit/metrics.mjs";
 async function fixture(t, { development = true } = {}) {
   const store = createStore(":memory:");
   const app = express();

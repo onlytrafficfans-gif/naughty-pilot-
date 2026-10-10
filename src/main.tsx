@@ -46,7 +46,9 @@ import QRCode from "qrcode";
 import "./styles.css";
 import Dashboard, { campaignPresets } from "./Dashboard";
 import WorkspaceScreen from "./WorkspaceScreen";
+import FounderControls from "./FounderControls";
 import { Settings } from "lucide-react";
+const founderBuild = import.meta.env.VITE_FOUNDER_MODE === "true";
 const NAV = [
   ["Home", Home, "home"],
   ["Traffic", Activity, "traffic"],
@@ -310,8 +312,14 @@ function Modal({
     </div>
   );
 }
-function Auth({ onSuccess }: { onSuccess: () => void }) {
-  const [register, setRegister] = useState(true),
+function Auth({
+  onSuccess,
+  founderOnly = false,
+}: {
+  onSuccess: () => void;
+  founderOnly?: boolean;
+}) {
+  const [register, setRegister] = useState(!founderOnly),
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [adult, setAdult] = useState(false),
@@ -465,19 +473,21 @@ function Auth({ onSuccess }: { onSuccess: () => void }) {
               </>
             )}
           </button>
-          <p className="auth-switch">
-            {register ? "Already have an account?" : "New to Naughty Pilot?"}{" "}
-            <button
-              type="button"
-              className="text-button"
-              onClick={() => {
-                setRegister(!register);
-                setError("");
-              }}
-            >
-              {register ? "Sign in" : "Create account"}
-            </button>
-          </p>
+          {!founderOnly && (
+            <p className="auth-switch">
+              {register ? "Already have an account?" : "New to Naughty Pilot?"}{" "}
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => {
+                  setRegister(!register);
+                  setError("");
+                }}
+              >
+                {register ? "Sign in" : "Create account"}
+              </button>
+            </p>
+          )}
           <div className="secure-note">
             <LockKeyhole size={14} /> Your data belongs to you. Always.
           </div>
@@ -858,6 +868,7 @@ function currentSection() {
   return NAV.some((n) => n[2] === path) || path === "admin" ? path : "home";
 }
 export function App() {
+  const [founderOnly, setFounderOnly] = useState(founderBuild);
   const [boot, setBoot] = useState(true),
     [user, setUser] = useState<any>(null),
     [profile, setProfile] = useState<any>(null),
@@ -915,6 +926,7 @@ export function App() {
   async function bootup() {
     try {
       const d = await api("/auth/me");
+      setFounderOnly(founderBuild || !!d.founder_only);
       setUser(d.user);
       setProfile(d.profile);
       if (d.profile?.onboarded) await refresh();
@@ -1002,7 +1014,7 @@ export function App() {
         <p>Opening your cockpit…</p>
       </div>
     );
-  if (!user) return <Auth onSuccess={bootup} />;
+  if (!user) return <Auth onSuccess={bootup} founderOnly={founderOnly} />;
   if (!profile?.onboarded)
     return <Onboarding user={user} existing={profile} onComplete={bootup} />;
   if (!state)
@@ -1346,6 +1358,23 @@ export function App() {
               </button>
             )}
           </div>
+          {state.founder_only && (
+            <div className="panel">
+              <span>
+                Real spending disabled · Planning{" "}
+                {state.founder_controls?.paused ? "paused" : "enabled"}
+              </span>{" "}
+              <button className="button" onClick={() => navigate("admin")}>
+                Founder controls
+              </button>
+            </div>
+          )}
+          {state.data_truncated && (
+            <p role="status">
+              Analytics cover the most recent 10,000 events and conversions.
+              Older records remain stored in Supabase.
+            </p>
+          )}
           {state.has_demo && (
             <div className="demo-banner">
               <Radio size={18} />
@@ -3816,6 +3845,7 @@ function Admin() {
   ) : data ? (
     <div className="panel">
       <h2>System health: {data.health}</h2>
+      {data.controls && <FounderControls api={api} />}
       <div className="mini-metrics">
         <Metric
           label="Users"

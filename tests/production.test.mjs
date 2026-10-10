@@ -4,7 +4,7 @@ import { once } from "node:events";
 import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createLocalServer } from "../api/_local-dev.mjs";
+import { createLocalServer } from "../server/_local-dev.mjs";
 
 test("production serves all creator routes, protects sessions, disables samples and survives restart", async (t) => {
   const directory = mkdtempSync(join(tmpdir(), "np-production-"));
@@ -112,7 +112,9 @@ test("production serves all creator routes, protects sessions, disables samples 
     (await registration.json()).user.id,
     { access_token: "fixture-only" },
   );
-  assert.equal(statSync(process.env.NP_DB_PATH + ".key").mode & 0o777, 0o600);
+  // Windows does not implement POSIX file permission bits.
+  if (process.platform !== 'win32') assert.equal(statSync(process.env.NP_DB_PATH + ".key").mode & 0o777, 0o600);
+  assert.equal(statSync(process.env.NP_DB_PATH + ".key").size, 32);
   await running.close();
   running = null;
   base = await start();

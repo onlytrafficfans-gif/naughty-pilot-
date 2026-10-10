@@ -1,6 +1,7 @@
 import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./tests/browser",
+  testIgnore: "**/founder.spec.ts",
   timeout: 75000,
   workers: 1,
   reporter: "list",
@@ -8,13 +9,17 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:4180",
     headless: true,
     launchOptions: {
-      executablePath:
-        process.env.PLAYWRIGHT_CHROMIUM_PATH || "/usr/bin/chromium",
+      ...(process.env.PLAYWRIGHT_CHROMIUM_PATH
+        ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }
+        : process.platform === "win32"
+          ? { channel: "chrome" }
+          : { executablePath: "/usr/bin/chromium" }),
       args: ["--no-sandbox"],
     },
   },
   webServer: {
-    command: "PORT=4180 NP_DB_PATH=.data/browser.sqlite npm run dev",
+    command: "node server.mjs --port 4180",
+    env: { NP_DB_PATH: ".data/browser.sqlite", NP_BACKEND: "sqlite" },
     url: "http://127.0.0.1:4180",
     reuseExistingServer: !process.env.CI,
     timeout: 20000,

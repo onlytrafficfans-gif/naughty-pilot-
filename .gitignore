@@ -3,9 +3,10 @@ naughty-pilot-prototype.zip
 .env
 *.log
 dist/
-package-lock.json
 .vercel
 .env*
+!.env.example
+supabase/.temp/
 
 .data/
 playwright-report/

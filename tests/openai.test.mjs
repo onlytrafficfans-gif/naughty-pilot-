@@ -1,8 +1,8 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { openaiText } from '../api/_openai.mjs';
-import { generateCampaign } from '../api/generate-campaign.mjs';
-import { runCreativeAction } from '../api/generate-creative.mjs';
+import { openaiText } from '../server/_openai.mjs';
+import { generateCampaign } from '../server/generate-campaign.mjs';
+import { runCreativeAction } from '../server/generate-creative.mjs';
 const originalFetch = globalThis.fetch;
 const originalKey = process.env.NP_OPENAI_API_KEY;
 const originalStandardKey = process.env.OPENAI_API_KEY;
