@@ -105,3 +105,16 @@ The dedicated Supabase project has **not** been provisioned. The connector's req
 founder account or OpenAI key is configured in production. Existing production is not promoted
 from this unconfigured preview. Live Supabase persistence, Supabase Auth, OpenAI generation,
 and production acceptance remain pending; local fixture tests do not substitute for them.
+
+## Live setup progress on 2026-10-13
+
+The dedicated `naughty-pilot` project `kgogupkmlnehysbawrhb` is now active. The founder
+backend migration was applied successfully. Live SQL confirms all 12 backend tables have
+RLS enabled, anonymous roles cannot read campaigns or execute approval RPCs, and planning
+is paused with real spending disabled. The automatically generated `rls_auto_enable()`
+helper was restricted so public roles cannot invoke its privileged code. Security advisors
+now report only the intentional no-policy information notices for server-only tables.
+
+The production Vercel project has its Supabase URL, public key and application origin set.
+Founder account creation, its singleton UUID binding, Supabase secret-key transfer and
+OpenAI credentials remain pending. No production redeployment has been performed yet.
